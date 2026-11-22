@@ -1,6 +1,8 @@
 # AFTERGLOW — Phase 0: Research & Plan
 
-_Status: draft for owner review · 23 Nov 2026_
+_Status: approved by owner · 23 Nov 2026_
+
+> **Update (23 Nov 2026):** the owner confirmed Spotify has granted full permission for AFTERGLOW. The "keep Spotify disabled" recommendation in §0 and §3.2 is superseded: Spotify will be built enabled in Phase 5. See `docs/phase-1-foundation.md`.
 
 This document is the output of Phase 0. It records what was found, what was decided and why, and what needs the owner's decision before Phase 1 starts. Plain-language summaries are at the top of each section; detail follows.
 
@@ -18,17 +20,17 @@ This document is the output of Phase 0. It records what was found, what was deci
 
 ## 1. Environment audit
 
-| Item | Found | Notes |
-|---|---|---|
-| OS | Windows 11 Home 26200 | |
-| CPU / RAM | i7‑1265U (12 threads) / 32 GB | |
-| GPU | **Intel Iris Xe**, 1920×1200 @ 60 Hz | The "ordinary laptop" baseline. Every scene must hit 60 fps at Balanced here. |
-| Node / npm | v26.13.1 / 11.20.0 | Electron bundles its own Node; fine. |
-| Git / GitHub CLI | 2.55 / 2.102, logged in as `adipro1` (repo, workflow scopes) | Can create the repo. |
-| Python | 3.12.5 | Used only for tooling (frame extraction). |
-| ffmpeg | **Missing** | Not needed for the app. Used a scratch OpenCV venv for frame analysis instead. |
-| MCP / automation | Playwright, built-in browser, Claude in Chrome, computer-use, Figma | Playwright will drive Electron for visual QA. |
-| Disk | 142 GB free | |
+| Item             | Found                                                               | Notes                                                                          |
+| ---------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| OS               | Windows 11 Home 26200                                               |                                                                                |
+| CPU / RAM        | i7‑1265U (12 threads) / 32 GB                                       |                                                                                |
+| GPU              | **Intel Iris Xe**, 1920×1200 @ 60 Hz                                | The "ordinary laptop" baseline. Every scene must hit 60 fps at Balanced here.  |
+| Node / npm       | v26.13.1 / 11.20.0                                                  | Electron bundles its own Node; fine.                                           |
+| Git / GitHub CLI | 2.55 / 2.102, logged in as `adipro1` (repo, workflow scopes)        | Can create the repo.                                                           |
+| Python           | 3.12.5                                                              | Used only for tooling (frame extraction).                                      |
+| ffmpeg           | **Missing**                                                         | Not needed for the app. Used a scratch OpenCV venv for frame analysis instead. |
+| MCP / automation | Playwright, built-in browser, Claude in Chrome, computer-use, Figma | Playwright will drive Electron for visual QA.                                  |
+| Disk             | 142 GB free                                                         |                                                                                |
 
 **Project location risk:** the project lives in a **OneDrive-synced** folder. `node_modules` (~100k files) and build output will churn OneDrive sync, slow installs, and can cause file-lock errors during builds. Recommendation: move the project to `C:\dev\afterglow` (GitHub becomes the backup). Needs owner decision.
 
@@ -43,12 +45,14 @@ Both clips are 12–13 s, 720×1280 phone recordings of a monitor in a dark room
 ### 2.1 Reference 1 — "floating windows" (primary UI direction)
 
 What happens:
+
 - 0–2 s: a near-black frameless window floats in a black void. A now-playing card (square album art with soft radius, two-line title, small artist line, pill transport controls, a "Lyrics" pill, a quiet bottom toolbar) sits centred with huge negative space.
 - The window edge is **not a uniform border**: a thin line whose glow is brightest at corners/one edge and fades to nothing along the run — magenta (#ff2d8a-ish) shading into violet (#7b3cff-ish). It reads like light leaking from the window's edge, not a CSS outline. A small **notch tab** breaks the top edge.
 - 2–5 s: camera swings; the player blurs out and lyrics take over as **message bubbles**. First bubble carries a **location chip** ("Shibuya Crossing, Tokyo") — a metadata line that turns a lyric into a "sent from somewhere" moment. The active bubble gets an outline ring; incoming words land with a **motion-blurred ghost** (double exposure) before settling.
 - 5–13 s: a second window (album artwork, large, slightly rotated in perspective, same magenta edge on its bottom) appears to the lower right — two windows at different depths. Bubbles alternate: sent (desaturated slate-blue #6f86b8) vs received (warm, dark, album-tinted #2a1c10 with amber text). Old bubbles drift up and fade; never more than 2–3 on screen.
 
 Design language extracted:
+
 - **Darkness as material.** Background is pure near-black; panels are only ~2–4% lighter. Light comes from accents, not surfaces.
 - **One accent, used sparingly.** Magenta→violet only on edges. Content colour comes from the album art.
 - **Album-derived tint.** Bubble text and fills pick up the cover's warm palette (amber/rust). We extract a palette from the art and use it around the art — the art itself is never altered (Spotify rule).
@@ -59,12 +63,14 @@ Design language extracted:
 ### 2.2 Reference 2 — "cinematic environment"
 
 What happens:
+
 - A photoreal Earth limb fills the top of frame against black space; a sliver of atmosphere glow.
 - Lyrics are **3D extruded, heavy condensed caps** with **mixed hierarchy inside a line** — "WHATEVER I'VE" large and bright, "DONE" smaller, dimmer, offset below; "MINUTES ARE RACIN'" with "ARE" small and stacked. Strong camera-facing perspective, slight bevel, soft shadow.
 - Centre: circular album art with a **radial bar spectrum** (warm white/gold bars) pulsing.
 - A clock (23:11, light weight) and a compact now-playing list sit at the edges like a HUD.
 
 Design language extracted:
+
 - **Scale contrast** (huge planet vs small UI) creates the cinema feel.
 - **Word-level hierarchy** — emphasis words big, function words small. This is a reusable typographic system for many of our scenes.
 - **Warm core vs cool environment** — warm art/spectrum against cold blue-grey planet.
@@ -79,24 +85,25 @@ What we will _not_ copy: the circular crop of album art (prohibited — §3.3) a
 
 Draft tokens (refined in Phase 1):
 
-| Token | Value | Use |
-|---|---|---|
-| `ink-0` | #040306 | void |
-| `ink-1` | #0b0a0f | panel |
-| `ink-2` | #15131b | raised panel |
-| `edge-a` | #ff2d8a | edge light start |
-| `edge-b` | #7b3cff | edge light end |
-| `text-hi` | #f4f1ec | primary text |
-| `text-lo` | #8d8794 | secondary |
-| `tint-*` | from album art | per-track content colour |
-| ease `out-expo` | cubic-bezier(.16,1,.3,1) | entrances |
-| ease `in-out-sine` | cubic-bezier(.37,0,.63,1) | camera drift |
+| Token              | Value                     | Use                      |
+| ------------------ | ------------------------- | ------------------------ |
+| `ink-0`            | #040306                   | void                     |
+| `ink-1`            | #0b0a0f                   | panel                    |
+| `ink-2`            | #15131b                   | raised panel             |
+| `edge-a`           | #ff2d8a                   | edge light start         |
+| `edge-b`           | #7b3cff                   | edge light end           |
+| `text-hi`          | #f4f1ec                   | primary text             |
+| `text-lo`          | #8d8794                   | secondary                |
+| `tint-*`           | from album art            | per-track content colour |
+| ease `out-expo`    | cubic-bezier(.16,1,.3,1)  | entrances                |
+| ease `in-out-sine` | cubic-bezier(.37,0,.63,1) | camera drift             |
 
 ---
 
 ## 3. Spotify: what's allowed today
 
 ### 3.1 Technical facts (current as of Nov 2026)
+
 - **Auth:** Authorization Code with **PKCE** is required (implicit grant is gone). Redirect URI must be a loopback IP literal like `http://127.0.0.1:PORT/callback` — `localhost` is rejected. The port may be dynamic. → Electron main process opens the system browser, runs a tiny one-shot loopback server, exchanges the code. No client secret needed.
 - **Scopes:** only `user-read-currently-playing` and `user-read-playback-state`. No playback control (controlling playback would make AFTERGLOW a "streaming app" with stricter rules).
 - **Endpoint:** `GET /v1/me/player/currently-playing` (progress_ms, is_playing, item, timestamp). Poll adaptively: ~1 s while playing near transitions, 3–5 s steady state, back off when paused/idle, respect `Retry-After` on 429. Between polls, interpolate locally with `performance.now()`.
@@ -105,6 +112,7 @@ Draft tokens (refined in Phase 1):
 - **Tokens:** refresh token stored in the main process only, encrypted with Electron `safeStorage` (Windows DPAPI). Never in the renderer, never in logs.
 
 ### 3.2 The policy problem
+
 Spotify Developer Policy (effective 15 May 2025), §III.6: _"Do not synchronize any sound recordings with any visual media…"_.
 Spotify Compliance Tips, "Disallowed Use Cases → Synchronization": _"Syncing sound recordings accessed via the Spotify Platform with other recordings, lyrics, or video."_
 
@@ -113,6 +121,7 @@ AFTERGLOW doesn't touch the audio stream, but it times lyric visuals to Spotify'
 **Consequence (per the brief):** the Spotify integration is built behind a feature flag and stays **off** unless the owner has written approval from Spotify covering this use. The rest of the product does not depend on it.
 
 ### 3.3 Other Spotify rules that shape the design
+
 - **No AI on Spotify content** (Policy §III.14): track title/artist/art from Spotify must not be sent to any AI model. The interpretation engine only sees lyrics from the (non-Spotify) lyrics provider and only if that provider's licence allows it.
 - **No analysing Spotify content** (§III.13): no derived stats.
 - **Artwork:** "do not modify, crop or adjust artwork". Show covers square, unfiltered, unrotated in 2D. (3D perspective placement is a grey area — we keep covers flat-on to camera to be safe.) Colour sampling for surrounding UI is fine; tinting the art itself is not.
@@ -120,20 +129,21 @@ AFTERGLOW doesn't touch the audio stream, but it times lyric visuals to Spotify'
 - **Non-commercial** for this tier of access.
 
 ### 3.4 Workarounds we will not use
+
 No unofficial APIs, no reading Spotify's client memory/cache, no audio loopback capture, no scraping. (Note: Windows' own media-session API can read "now playing" from any player, including Spotify desktop — it's a public OS API, but using it to route around Spotify's policy would be against the spirit of the brief. Listed in open questions, not planned.)
 
 ---
 
 ## 4. Lyrics: what's available
 
-| Source | Word-level sync | Licensed | Cost | Verdict |
-|---|---|---|---|---|
-| **Musixmatch API** | Yes (richsync) on paid tiers | Yes | Quote-based; historic figures in the ~$25k/yr range for full lyrics (unverified) | Target provider if owner ever licenses it. Free tier = 30% of lyrics, no sync → useless. |
-| LyricFind | Line-level | Yes | Enterprise only | Same bucket. |
-| LRCLIB / NetEase / Genius scraping | Varies | **No** | Free | **Excluded** by the brief. |
-| **User-imported `.lrc` / `.srt`** | Line-level (enhanced LRC has word tags) | The user's responsibility (their files) | Free | **v1 primary source.** |
-| **Built-in timing editor** | Word + line | User's own work | Free | **v1.** Tap-to-time while listening. |
-| Original demo songs | Word | We write them | Free | Mock data for development & gallery. |
+| Source                             | Word-level sync                         | Licensed                                | Cost                                                                             | Verdict                                                                                  |
+| ---------------------------------- | --------------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **Musixmatch API**                 | Yes (richsync) on paid tiers            | Yes                                     | Quote-based; historic figures in the ~$25k/yr range for full lyrics (unverified) | Target provider if owner ever licenses it. Free tier = 30% of lyrics, no sync → useless. |
+| LyricFind                          | Line-level                              | Yes                                     | Enterprise only                                                                  | Same bucket.                                                                             |
+| LRCLIB / NetEase / Genius scraping | Varies                                  | **No**                                  | Free                                                                             | **Excluded** by the brief.                                                               |
+| **User-imported `.lrc` / `.srt`**  | Line-level (enhanced LRC has word tags) | The user's responsibility (their files) | Free                                                                             | **v1 primary source.**                                                                   |
+| **Built-in timing editor**         | Word + line                             | User's own work                         | Free                                                                             | **v1.** Tap-to-time while listening.                                                     |
+| Original demo songs                | Word                                    | We write them                           | Free                                                                             | Mock data for development & gallery.                                                     |
 
 Design: `LyricsProvider` interface with `search(trackRef) → LyricsDocument | null`, each provider declares capabilities (`wordSync`, `lineSync`, `plain`, `aiProcessingAllowed`). Imported lyrics are stored per track in the user's app-data folder, never in the repo.
 
@@ -144,6 +154,7 @@ Design: `LyricsProvider` interface with `search(trackRef) → LyricsDocument | n
 Goal: pick a visual _direction per song section_ from meaning, not keywords.
 
 Pipeline:
+
 1. **Structure pass (deterministic):** split into sections using timing gaps, repeated line groups (chorus detection by similarity), instrumental gaps (>6 s without lines).
 2. **Feature pass (deterministic, local):** curated lexicon of concepts → themes (with phrase patterns, negation and metaphor handling rules, e.g. "call" + "missed/late/home" vs "call it off"), emotional valence/arousal from a small local lexicon, narrative markers (2nd-person address → conversation scenes), repetition weight.
 3. **Optional model pass:** a pluggable `Interpreter` that can be (a) local deterministic only, (b) a local small model later, or (c) a permitted external model (e.g. Claude API) — **opt-in, shows exactly what text is sent, and only for lyrics whose licence allows it.** Never Spotify data.
@@ -165,17 +176,17 @@ The deterministic path must produce good results on its own; the model only refi
 
 ### 7.1 Stack decisions
 
-| Choice | Why |
-|---|---|
-| **Electron** (+ electron-vite) | Required Windows desktop features (frameless, always-on-top, opacity, fullscreen), Chromium GPU path for WebGL, mature installer story. Tauri's WebView2 is lighter but its WebGL performance/consistency is less predictable for heavy 3D. |
-| **React 19 + TypeScript (strict)** | Shell UI and settings. Scenes do **not** re-render through React per frame. |
-| **Three.js + React Three Fiber + drei** | 3D scenes. R3F for declarative scene setup; per-frame work in `useFrame` mutating refs. |
-| **Own lightweight 2D path (DOM/CSS transforms + Canvas2D)** first; **PixiJS only if a scene needs it** | Messages, Email, Editorial etc. are typography-heavy; real DOM text gives the best kerning/hinting. PixiJS is added only when a scene needs thousands of sprites (Arcade, particles). |
-| **GSAP** | Timelines with seek/scrub — essential because lyric visuals must jump when the user seeks. Framer Motion only for shell UI micro-interactions (may drop it entirely to save a dependency). |
-| **Zustand** | Small stores, selector subscriptions → no needless re-renders. Per-frame clock lives _outside_ React. |
-| **Zod** | Validate everything crossing IPC, imported LRC/SRT, Spotify responses, settings files. |
-| **Vitest + Playwright (`_electron`)** | Unit tests for sync/parsing/director; screenshot-based visual checks of every scene at fixed timestamps. |
-| **electron-builder (NSIS)** | Windows installer + uninstaller; electron-updater later for updates via GitHub Releases. |
+| Choice                                                                                                 | Why                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Electron** (+ electron-vite)                                                                         | Required Windows desktop features (frameless, always-on-top, opacity, fullscreen), Chromium GPU path for WebGL, mature installer story. Tauri's WebView2 is lighter but its WebGL performance/consistency is less predictable for heavy 3D. |
+| **React 19 + TypeScript (strict)**                                                                     | Shell UI and settings. Scenes do **not** re-render through React per frame.                                                                                                                                                                 |
+| **Three.js + React Three Fiber + drei**                                                                | 3D scenes. R3F for declarative scene setup; per-frame work in `useFrame` mutating refs.                                                                                                                                                     |
+| **Own lightweight 2D path (DOM/CSS transforms + Canvas2D)** first; **PixiJS only if a scene needs it** | Messages, Email, Editorial etc. are typography-heavy; real DOM text gives the best kerning/hinting. PixiJS is added only when a scene needs thousands of sprites (Arcade, particles).                                                       |
+| **GSAP**                                                                                               | Timelines with seek/scrub — essential because lyric visuals must jump when the user seeks. Framer Motion only for shell UI micro-interactions (may drop it entirely to save a dependency).                                                  |
+| **Zustand**                                                                                            | Small stores, selector subscriptions → no needless re-renders. Per-frame clock lives _outside_ React.                                                                                                                                       |
+| **Zod**                                                                                                | Validate everything crossing IPC, imported LRC/SRT, Spotify responses, settings files.                                                                                                                                                      |
+| **Vitest + Playwright (`_electron`)**                                                                  | Unit tests for sync/parsing/director; screenshot-based visual checks of every scene at fixed timestamps.                                                                                                                                    |
+| **electron-builder (NSIS)**                                                                            | Windows installer + uninstaller; electron-updater later for updates via GitHub Releases.                                                                                                                                                    |
 
 ### 7.2 Process model
 
@@ -210,8 +221,10 @@ interface PlaybackSource {
   subscribe(cb: (s: PlaybackSnapshot) => void): Unsubscribe;
 }
 interface PlaybackSnapshot {
-  track: TrackRef | null; isPlaying: boolean;
-  positionMs: number; sampledAt: number; // monotonic ms
+  track: TrackRef | null;
+  isPlaying: boolean;
+  positionMs: number;
+  sampledAt: number; // monotonic ms
   durationMs: number;
 }
 // PlaybackClock smooths snapshots: interpolates, corrects drift by easing
@@ -223,12 +236,12 @@ interface Visualization {
 }
 interface SceneInstance {
   setLyrics(doc: LyricsDocument, section: SectionPlan): void;
-  update(frame: FrameContext): void;   // called by engine, not React
-  seek(ms: number): void;               // must be deterministic
+  update(frame: FrameContext): void; // called by engine, not React
+  seek(ms: number): void; // must be deterministic
   enter(t: Transition): Promise<void>;
   exit(t: Transition): Promise<void>;
   setQuality(q: QualityLevel): void;
-  dispose(): void;                      // free GPU/DOM resources
+  dispose(): void; // free GPU/DOM resources
 }
 ```
 
@@ -279,32 +292,33 @@ Fonts: only openly licensed (SIL OFL) families, e.g. Inter / Inter Display, a co
 
 ## 11. Roadmap (each phase ends with owner approval)
 
-| Phase | Deliverable | Exit criteria |
-|---|---|---|
-| **1 Foundation** | Electron/React/TS/Vite app, lint/format/test/CI, frameless window with custom controls, design tokens + edge-light panel primitive, PlaybackClock with mock source | Window launches, `npm test` + Playwright smoke pass, screenshot reviewed |
-| **2 Messages** | First scene: bubbles, location chips, typing indicators, 3 compositions, perspective windows, word-level reveal, transitions; driven by an original demo song | Looks excellent paused at 10 sampled timestamps; 60 fps on Iris Xe Balanced |
-| **3 Animation engine** | Extract reusable timeline/spring/text/camera/transition systems from Phase 2 | Messages rebuilt on top of it with no regression |
-| **4 Lyrics & interpretation** | LRC/SRT import, timing editor, structure + theme analysis, director | Unit tests on parsers/edge cases; director produces sensible plans for demo songs |
-| **5 Spotify** | PKCE auth, poller, clock integration — **only if approval exists**; otherwise built and tested against a fake server, flag off | Pause/seek/skip/expiry handled |
-| **6 Library** | Remaining scenes in batches of 3–4, each reviewed | Each meets the Phase 2 bar |
-| **7 App experience** | Fullscreen, desktop widget mode, gallery, settings, perf controls | |
-| **8 QA & polish** | Full test matrix, memory soak test | |
-| **9 Release** | NSIS installer, updater, docs, private release | Install/uninstall/update tested |
+| Phase                         | Deliverable                                                                                                                                                        | Exit criteria                                                                     |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| **1 Foundation**              | Electron/React/TS/Vite app, lint/format/test/CI, frameless window with custom controls, design tokens + edge-light panel primitive, PlaybackClock with mock source | Window launches, `npm test` + Playwright smoke pass, screenshot reviewed          |
+| **2 Messages**                | First scene: bubbles, location chips, typing indicators, 3 compositions, perspective windows, word-level reveal, transitions; driven by an original demo song      | Looks excellent paused at 10 sampled timestamps; 60 fps on Iris Xe Balanced       |
+| **3 Animation engine**        | Extract reusable timeline/spring/text/camera/transition systems from Phase 2                                                                                       | Messages rebuilt on top of it with no regression                                  |
+| **4 Lyrics & interpretation** | LRC/SRT import, timing editor, structure + theme analysis, director                                                                                                | Unit tests on parsers/edge cases; director produces sensible plans for demo songs |
+| **5 Spotify**                 | PKCE auth, poller, clock integration — **only if approval exists**; otherwise built and tested against a fake server, flag off                                     | Pause/seek/skip/expiry handled                                                    |
+| **6 Library**                 | Remaining scenes in batches of 3–4, each reviewed                                                                                                                  | Each meets the Phase 2 bar                                                        |
+| **7 App experience**          | Fullscreen, desktop widget mode, gallery, settings, perf controls                                                                                                  |                                                                                   |
+| **8 QA & polish**             | Full test matrix, memory soak test                                                                                                                                 |                                                                                   |
+| **9 Release**                 | NSIS installer, updater, docs, private release                                                                                                                     | Install/uninstall/update tested                                                   |
 
 ## 12. Risk register
 
-| Risk | Impact | Mitigation |
-|---|---|---|
-| Spotify policy forbids lyric sync | Core feature unusable with Spotify | Feature flag off; local-file mode is first-class; owner may seek written approval |
-| Dev-mode limit (5 users, Premium owner) | Can't distribute widely even if allowed | Treat Spotify as personal/power-user feature |
-| No affordable licensed synced lyrics | Users must bring own LRC files | Excellent import + timing editor UX; Musixmatch adapter stub ready |
-| Iris Xe GPU budget | Jank in 3D scenes | Tiered quality, budgets per scene, perf HUD, test on this machine |
-| OneDrive sync + node_modules | Slow/broken builds | Move project out of OneDrive |
-| Font licensing | Legal | OFL fonts only |
-| 25 scenes × quality bar | Time | Phase gating; quality over count |
-| "AI-looking" design drift | Product feels generic | Reference-driven tokens, per-scene art direction notes, paused-frame reviews |
+| Risk                                    | Impact                                  | Mitigation                                                                        |
+| --------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------- |
+| Spotify policy forbids lyric sync       | Core feature unusable with Spotify      | Feature flag off; local-file mode is first-class; owner may seek written approval |
+| Dev-mode limit (5 users, Premium owner) | Can't distribute widely even if allowed | Treat Spotify as personal/power-user feature                                      |
+| No affordable licensed synced lyrics    | Users must bring own LRC files          | Excellent import + timing editor UX; Musixmatch adapter stub ready                |
+| Iris Xe GPU budget                      | Jank in 3D scenes                       | Tiered quality, budgets per scene, perf HUD, test on this machine                 |
+| OneDrive sync + node_modules            | Slow/broken builds                      | Move project out of OneDrive                                                      |
+| Font licensing                          | Legal                                   | OFL fonts only                                                                    |
+| 25 scenes × quality bar                 | Time                                    | Phase gating; quality over count                                                  |
+| "AI-looking" design drift               | Product feels generic                   | Reference-driven tokens, per-scene art direction notes, paused-frame reviews      |
 
 ## 13. Sources
+
 - Spotify Developer Policy — https://developer.spotify.com/policy/
 - Spotify Compliance Tips — https://developer.spotify.com/compliance-tips
 - Feb 2026 Dev Mode migration guide — https://developer.spotify.com/documentation/web-api/tutorials/february-2026-migration-guide
