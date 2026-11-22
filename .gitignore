@@ -1,0 +1,36 @@
+# dependencies & build
+node_modules/
+out/
+dist/
+release/
+.vite/
+coverage/
+playwright-report/
+test-results/
+*.log
+
+# secrets & local config
+.env
+.env.*
+!.env.example
+*.pem
+.claude/settings.local.json
+
+# reference material with third-party copyrighted content — never commit
+refrences/
+references/
+
+# user data (imported lyrics, audio)
+user-data/
+*.lrc
+*.srt
+!demo-songs/**/*.lrc
+*.mp3
+*.flac
+*.wav
+*.m4a
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
