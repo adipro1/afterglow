@@ -116,11 +116,18 @@ export function Lockscreen({
         const pileIndex = Math.min(piled, 2.2);
         const scale = (1 - pileIndex * 0.05) * mix(0.9, 1, s);
         const opacity = clamp(age / 40) * (1 - smoothstep(1.4, 2.2, piled));
-        const enterY = (1 - s) * -14;
         // Once tucked, a card hides behind the one above, showing only a sliver of its edge.
         const pileY = -tuck * (h + GAP) + pileIndex * 9;
-        el.style.transform = `translate3d(0, ${(y + enterY + pileY).toFixed(2)}px, 0) scale(${scale.toFixed(4)})`;
-        el.style.opacity = opacity.toFixed(3);
+        el.style.transform = `translate3d(0, ${(y + pileY).toFixed(2)}px, 0) scale(${scale.toFixed(4)})`;
+        // The arriving card unfolds downward exactly as fast as the stack below makes room, so it
+        // never covers the card beneath it (or the player above). Clip is in pre-scale pixels.
+        const room = (h + GAP) * s - GAP;
+        const cut = rank === 0 && h > 0 ? h - Math.max(0, room) / scale : 0;
+        const clip = cut > 0.5 ? `inset(0 0 ${cut.toFixed(1)}px 0 round 6cqw)` : '';
+        if (el.style.clipPath !== clip) el.style.clipPath = clip;
+        // While half-unfolded it is still faint, so cut-off text never reads as a glitch.
+        const shownFrac = h > 0 ? 1 - Math.max(0, cut) / h : 1;
+        el.style.opacity = (opacity * smoothstep(0.15, 0.8, shownFrac)).toFixed(3);
         el.style.zIndex = String(100 - rank);
         const vis = opacity < 0.002 ? 'hidden' : 'visible';
         if (el.style.visibility !== vis) el.style.visibility = vis;
