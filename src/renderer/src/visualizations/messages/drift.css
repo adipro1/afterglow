@@ -1,0 +1,84 @@
+/* ═════════════ Messages · Drift ═════════════ */
+.msg-drift {
+  perspective: 1400px;
+  perspective-origin: 50% 35%;
+  overflow: visible;
+}
+.msg-drift__glow {
+  position: absolute;
+  inset: -10%;
+  pointer-events: none;
+  transition: background 1600ms var(--ease-in-out-sine);
+  background: radial-gradient(40% 50% at 50% 62%, rgb(255 255 255 / 0.03), transparent 70%);
+}
+.msg-drift__glow[data-side='in'] {
+  background: radial-gradient(
+    42% 52% at 36% 62%,
+    color-mix(in oklab, var(--tint-1), transparent 86%),
+    transparent 72%
+  );
+}
+.msg-drift__glow[data-side='out'] {
+  background: radial-gradient(
+    42% 52% at 64% 62%,
+    color-mix(in oklab, var(--tint-2), transparent 82%),
+    transparent 72%
+  );
+}
+.msg-drift__space,
+.msg-drift__field {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+.drift-item {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: flex;
+  flex-direction: column;
+  will-change: transform, opacity, filter;
+  --msg-font: clamp(20px, 2.6cqw, 36px);
+}
+.drift-item.side-in {
+  align-items: flex-start;
+}
+.drift-item.side-out {
+  align-items: flex-end;
+}
+.drift-item .bubble {
+  max-width: 24em;
+  white-space: nowrap;
+  box-shadow: 0 30px 60px -20px rgb(0 0 0 / 0.8);
+}
+.drift-sep {
+  margin: 0 0.6em 0.9em;
+  color: var(--text-lo);
+  font-size: 10.5px;
+}
+.drift-compose {
+  position: absolute;
+  left: 50%;
+  bottom: 2cqh;
+  transform: translate(-50%, 20%);
+  display: flex;
+  align-items: center;
+  font-size: clamp(16px, 1.7cqw, 24px);
+  color: var(--text-hi);
+  opacity: 0;
+  transition:
+    opacity 300ms var(--ease-out-quart),
+    transform 500ms var(--ease-out-expo);
+  text-shadow: 0 0 24px color-mix(in oklab, var(--tint-2), transparent 40%);
+}
+.drift-compose[data-open='1'] {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.drift-compose__caret {
+  width: 2px;
+  height: 1.1em;
+  margin-left: 2px;
+  background: var(--tint-2);
+  box-shadow: 0 0 12px var(--tint-2);
+}

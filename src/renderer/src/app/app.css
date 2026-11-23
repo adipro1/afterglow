@@ -65,42 +65,69 @@
   color: white;
 }
 
-/* ───────── Stage ───────── */
+/* ───────── Stage & scene layers ───────── */
 .stage {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
-  perspective: 2200px;
-  perspective-origin: 50% 40%;
-  padding: calc(var(--titlebar-h) + 16px) 6vw 132px;
+  /* The area scenes may compose in, clear of the title bar and the dock. */
+  --safe-top: calc(var(--titlebar-h) + 12px);
+  --safe-bottom: 128px;
+  --safe-x: 4vw;
 }
 .app.is-fullscreen .stage {
-  padding: 6vh 7vw 9vh;
+  --safe-top: 5vh;
+  --safe-bottom: 7vh;
+  --safe-x: 5vw;
 }
-.stage__rig {
-  width: min(1040px, 76vw);
-  transform-style: preserve-3d;
-  will-change: transform;
+.scene-layer {
+  position: absolute;
+  inset: var(--safe-top) var(--safe-x) var(--safe-bottom);
+  perspective: 2200px;
+  perspective-origin: 50% 40%;
+  container-type: size;
+  transition:
+    opacity 900ms var(--ease-out-quart),
+    transform 1100ms var(--ease-out-expo),
+    filter 900ms var(--ease-out-quart);
 }
-.stage__window {
-  width: 100%;
-  aspect-ratio: 16 / 8.6;
-  max-height: calc(100vh - 220px);
+.scene-layer > * {
+  position: absolute;
+  inset: 0;
 }
-.app.is-fullscreen .stage__rig {
-  width: min(1320px, 78vw);
+/* Outgoing scene sinks back into the dark; the incoming one surfaces from just in front. */
+.scene-layer[data-phase='exit'] {
+  opacity: 0;
+  transform: scale(0.965) translateY(1.5%);
+  filter: blur(6px);
+  pointer-events: none;
 }
-.app.is-fullscreen .stage__window {
-  max-height: 78vh;
+.scene-layer[data-phase='enter'] {
+  opacity: 0;
+  transform: scale(1.03);
+  filter: blur(4px);
 }
-/* Light from the window pooling on an unseen floor. */
-.stage__floor {
+.stage__label {
+  position: absolute;
+  top: calc(var(--safe-top) - 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 600ms var(--ease-out-quart);
+  color: var(--text-lo);
+  pointer-events: none;
+}
+.stage__label.is-shown {
+  opacity: 1;
+}
+
+/* Light from a lit window pooling on an unseen floor (shared by scenes). */
+.scene-floor {
   position: absolute;
   left: 50%;
-  bottom: 9vh;
-  width: 62vw;
-  height: 18vh;
+  bottom: -6%;
+  width: 70%;
+  height: 22%;
   transform: translateX(-46%);
   background: radial-gradient(
     50% 50% at 60% 40%,
@@ -110,112 +137,6 @@
   );
   filter: blur(10px);
   pointer-events: none;
-}
-
-/* ───────── Prelude lyric view ───────── */
-.prelude {
-  --lyric-size: clamp(30px, 4.1vw, 64px);
-  position: absolute;
-  inset: 0;
-  padding: 30px 7.5% 0;
-}
-.prelude__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  color: var(--text-lo);
-}
-.prelude__time {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-mid);
-}
-.prelude__time-total {
-  color: var(--text-lo);
-}
-.prelude__lines {
-  position: absolute;
-  left: 7.5%;
-  right: 9%;
-  top: 52%;
-}
-.pl {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 100%;
-  transform-origin: 0 0;
-  font-family: var(--font-display);
-  font-size: var(--lyric-size);
-  font-weight: 620;
-  line-height: 1.04;
-  letter-spacing: -0.028em;
-  color: var(--text-hi);
-  text-wrap: balance;
-  transition:
-    transform 900ms var(--ease-out-expo),
-    opacity 700ms var(--ease-out-quart);
-  will-change: transform, opacity;
-}
-.pl__eyebrow {
-  display: block;
-  margin-bottom: 0.9em;
-  font-size: 11px;
-  font-family: var(--font-ui);
-  letter-spacing: 0.3em;
-  color: var(--tint-1);
-  opacity: 0.85;
-}
-.pl:not([data-slot='0']) .pl__eyebrow {
-  opacity: 0;
-}
-.pl__eyebrow {
-  transition: opacity 400ms var(--ease-out-quart);
-}
-.pl--title .pl__text {
-  color: var(--text-mid);
-  font-weight: 300;
-  letter-spacing: -0.035em;
-}
-.pl[data-active='false'] {
-  opacity: 0.38 !important;
-}
-
-/* Word states — only meaningful on the current line. */
-.pl .w {
-  display: inline-block;
-  transition:
-    opacity 600ms var(--ease-out-quart),
-    color 900ms var(--ease-out-quart),
-    text-shadow 900ms var(--ease-out-quart);
-}
-.pl[data-slot='0'] .w[data-state='next'] {
-  opacity: 0.16;
-}
-.pl[data-slot='0'] .w[data-state='now'] {
-  color: var(--tint-1);
-  text-shadow: 0 0 28px color-mix(in oklab, var(--tint-1), transparent 55%);
-  animation: word-in 520ms var(--ease-out-expo) both;
-}
-.pl[data-slot='0'] .w[data-state='past'] {
-  color: var(--text-hi);
-}
-@keyframes word-in {
-  from {
-    opacity: 0.16;
-    transform: translateY(0.1em);
-    filter: blur(6px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-    filter: blur(0);
-  }
-}
-.prelude.is-jump .pl,
-.prelude.is-jump .w {
-  transition: none !important;
-  animation: none !important;
 }
 
 /* ───────── Now-playing dock ───────── */

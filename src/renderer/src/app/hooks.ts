@@ -3,6 +3,7 @@ import type { WindowState } from '@shared/ipc';
 import { runtime } from '@/state/playback';
 import { isControllable } from '@/playback/types';
 import { DemoPlaybackSource } from '@/playback/demo-source';
+import { useScene } from '@/state/scene';
 
 const initialWindowState: WindowState = {
   isMaximized: false,
@@ -53,7 +54,7 @@ export function useIdle(ms: number, enabled: boolean): boolean {
 export function useShortcuts(isFullScreen: boolean): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      if (e.ctrlKey || e.altKey || e.metaKey || e.repeat) return;
       const src = runtime.source;
       switch (e.key) {
         case 'F11':
@@ -64,6 +65,14 @@ export function useShortcuts(isFullScreen: boolean): void {
           return;
         case 'Escape':
           if (isFullScreen) windowCommand('toggle-fullscreen');
+          return;
+        case 'v':
+        case 'V':
+          useScene.getState().cycleVariation(e.shiftKey ? -1 : 1);
+          return;
+        case 's':
+        case 'S':
+          useScene.getState().cycleScene(e.shiftKey ? -1 : 1);
           return;
       }
       if (!isControllable(src)) return;
@@ -94,7 +103,4 @@ export function useShortcuts(isFullScreen: boolean): void {
   }, [isFullScreen]);
 }
 
-export function formatTime(ms: number): string {
-  const s = Math.max(0, Math.floor(ms / 1000));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-}
+export { formatTime } from './format';
