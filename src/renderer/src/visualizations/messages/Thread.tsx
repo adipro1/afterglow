@@ -1,16 +1,35 @@
-import { useLayoutEffect, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { EdgePanel } from '@/design/EdgePanel';
-import { FloatingRig } from '@/design/FloatingRig';
 import { Artwork } from '@/design/Artwork';
 import { Icon } from '@/design/Icon';
-import { useTicker } from '@/engine/ticker';
-import { bump, clamp, mix, smoothstep } from '@/animation/easing';
-import { spring, springs } from '@/animation/spring';
+import {
+  Rig,
+  applyTyping,
+  clamp,
+  enter,
+  flash,
+  flowStack,
+  mix,
+  nudge,
+  presence,
+  ramp,
+  revealClip,
+  setData,
+  setOpacity,
+  setStyle,
+  setTransform,
+  smoothstep,
+  springs,
+  transform,
+  useClientHeight,
+  useMeasure,
+  useTicker,
+  type Box,
+} from '@/engine';
 import type { SceneProps } from '../types';
 import { Bubble, TypingBubble, applyReaction, applySungWords, applyTypingDots } from './Bubble';
 import { clockLabel, composeAt, type ConversationPlan, type PlannedMessage } from './plan';
 import type { ConversationStructure } from './useConversation';
-import { useSizes } from './useSizes';
 
 /** How many landed messages stay mounted (older ones have scrolled out of view). */
 const KEEP = 9;
@@ -60,22 +79,17 @@ function buildItems(plan: ConversationPlan, s: ConversationStructure): Item[] {
 }
 
 /** Layout weight (0..1) of an item at time t — how much vertical space it currently claims. */
-function presence(it: Item, t: number): number {
+function weight(it: Item, t: number): number {
   switch (it.kind) {
     case 'intro':
       return 1;
     case 'sep':
     case 'msg':
-      return spring(t - it.m.appearAt, springs.glide);
+      return enter(t, it.m.appearAt, springs.glide);
     case 'receipt':
-      return (
-        spring(t - it.m.appearAt - 240, springs.glide) * (1 - spring(t - it.hideAt, springs.glide))
-      );
+      return presence(t, it.m.appearAt + 240, it.hideAt, springs.glide);
     case 'typing':
-      return (
-        spring(t - (it.m.typingFrom ?? 0), springs.snap) *
-        (1 - spring(t - it.m.appearAt, springs.snap))
-      );
+      return presence(t, it.m.typingFrom ?? 0, it.m.appearAt, springs.snap);
   }
 }
 
@@ -97,6 +111,8 @@ export function Thread({
   seed,
 }: SceneProps & { plan: ConversationPlan; structure: ConversationStructure }) {
   const items = useMemo(() => buildItems(plan, structure), [plan, structure]);
+  // The thread grows upward from the compose field: lay it out newest-first.
+  const stackOrder = useMemo(() => [...items].reverse(), [items]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const composeRef = useRef<HTMLDivElement>(null);
   const composeTextRef = useRef<HTMLSpanElement>(null);
@@ -105,128 +121,95 @@ export function Thread({
   const statusRef = useRef<HTMLDivElement>(null);
   const flashRef = useRef<SVGSVGElement>(null);
   const kickRef = useRef<HTMLDivElement>(null);
-  const bodyH = useRef(0);
-  const typingSize = useRef(TYPING_FALLBACK);
+  const typingSize = useRef<Box>(TYPING_FALLBACK);
   const lastTyped = useRef('');
 
   // Natural sizes of every item, tracked as they re-wrap or the window resizes.
-  const { sizes, els } = useSizes(scrollRef, 'item', [items]);
-
-  useLayoutEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => (bodyH.current = el.clientHeight));
-    ro.observe(el);
-    bodyH.current = el.clientHeight;
-    return () => ro.disconnect();
-  }, []);
+  const { sizes, els } = useMeasure(scrollRef, 'item', [items]);
+  const bodyH = useClientHeight(scrollRef);
 
   useTicker(() => {
     const t = getTime();
 
     // ── The stack, from the bottom up. Each item sits above everything newer, weighted by how
-    //    present it is, so arrivals push older messages up smoothly. Gaps are measured to the
-    //    nearest item that is actually present, so collapsed placeholders leave no hole.
-    let y = 0;
-    let below: Item | undefined;
-    for (let i = items.length - 1; i >= 0; i--) {
-      const it = items[i]!;
-      const el = els.current.get(it.key);
-      const p = presence(it, t);
-      const size = sizes.current.get(it.key);
-      const h = size?.h ?? 0;
-      if (below) y += gapAfter(it, below) * p;
-      if (it.kind === 'typing' && size && size.w > 0) typingSize.current = size;
+    //    present it is, so arrivals push older messages up smoothly.
+    const typing = items.find((it) => it.kind === 'typing');
+    const ts = typing && sizes.current.get(typing.key);
+    if (ts && ts.w > 0) typingSize.current = ts;
+    const slots = flowStack(stackOrder, {
+      size: (it) => sizes.current.get(it.key)?.h ?? 0,
+      presence: (it) => weight(it, t),
+      gap: gapAfter,
+    });
 
-      if (el) {
-        let extraY = 0;
-        let sx = 1;
-        let sy = 1;
-        let opacity = clamp(p * 1.6);
-        if (it.kind === 'msg') {
-          const m = it.m;
-          const age = t - m.appearAt;
-          const s = spring(age, springs.land);
-          if (m.side === 'out') {
-            // Sent: the bubble — text and all — lifts out of the compose field into place.
-            extraY = (1 - s) * RISE_PX;
-            sx = sy = mix(0.92, 1, s);
-            opacity = clamp(age / 60);
-          } else if (m.typingFrom !== null && size && size.w > 0) {
-            // Received after typing: the typing bubble grows into the message. The real bubble
-            // is revealed through a rounded window that expands from the typing bubble's size,
-            // so its corners stay perfectly round throughout (a stretch would flatten them).
-            morph(el, age, s, size, typingSize.current);
-            opacity = 1;
-          } else {
-            sx = sy = mix(0.86, 1, s);
-            extraY = (1 - s) * 10;
-            opacity = clamp(age / 120);
-          }
-          applySungWords(el, m, t);
-          applyReaction(el, m, t);
-        } else if (it.kind === 'typing') {
-          const s = spring(t - (it.m.typingFrom ?? 0), springs.pop);
-          sx = sy = mix(0.5, 1, s);
-          // Gone the instant the real message takes its place.
-          opacity = clamp((t - (it.m.typingFrom ?? 0)) / 120) * (t >= it.m.appearAt ? 0 : 1);
-          applyTypingDots(el, t);
-        } else if (it.kind === 'intro') {
-          // Rest in the middle of the empty thread; get pushed up once messages fill it.
-          const centre = Math.max(0, (bodyH.current - h) / 2 - 18);
-          extraY = -Math.max(0, centre - y);
+    stackOrder.forEach((it, i) => {
+      const el = els.current.get(it.key);
+      if (!el) return;
+      const { offset: y, presence: p } = slots[i]!;
+      const size = sizes.current.get(it.key);
+      let extraY = 0;
+      let scale = 1;
+      let opacity = clamp(p * 1.6);
+      if (it.kind === 'msg') {
+        const m = it.m;
+        const s = enter(t, m.appearAt, springs.land);
+        if (m.side === 'out') {
+          // Sent: the bubble — text and all — lifts out of the compose field into place.
+          extraY = (1 - s) * RISE_PX;
+          scale = mix(0.92, 1, s);
+          opacity = ramp(t, m.appearAt, 60);
+        } else if (m.typingFrom !== null && size && size.w > 0) {
+          // Received after typing: the typing bubble grows into the message.
+          morph(el, t - m.appearAt, s, size, typingSize.current);
           opacity = 1;
+        } else {
+          scale = mix(0.86, 1, s);
+          extraY = (1 - s) * 10;
+          opacity = ramp(t, m.appearAt, 120);
         }
-        const tf = `translate3d(0, ${(-y + extraY).toFixed(2)}px, 0) scale(${sx.toFixed(4)}, ${sy.toFixed(4)})`;
-        el.style.transform = tf;
-        el.style.opacity = opacity.toFixed(3);
-        const vis = opacity <= 0.001 ? 'hidden' : 'visible';
-        if (el.style.visibility !== vis) el.style.visibility = vis;
+        applySungWords(el, m, t);
+        applyReaction(el, m, t);
+      } else if (it.kind === 'typing') {
+        const from = it.m.typingFrom ?? 0;
+        scale = mix(0.5, 1, enter(t, from, springs.pop));
+        // Gone the instant the real message takes its place.
+        opacity = ramp(t, from, 120) * (t >= it.m.appearAt ? 0 : 1);
+        applyTypingDots(el, t);
+      } else if (it.kind === 'intro') {
+        // Rest in the middle of the empty thread; get pushed up once messages fill it.
+        const centre = Math.max(0, (bodyH.current - (size?.h ?? 0)) / 2 - 18);
+        extraY = -Math.max(0, centre - y);
+        opacity = 1;
       }
-      y += h * p;
-      if (p > 0.02) below = it;
-    }
+      setTransform(el, transform({ y: -y + extraY, scaleX: scale, scaleY: scale }));
+      setOpacity(el, opacity);
+    });
 
     // ── Compose field: the outgoing line is typed as it's sung; on send the text leaves
     //    inside the bubble, so the field simply clears.
     const c = composeAt(plan, t);
-    const text = c?.typed ?? '';
-    const ct = composeTextRef.current;
-    if (ct && text !== lastTyped.current) ct.textContent = lastTyped.current = text;
-    const field = composeRef.current;
-    if (field) {
-      const state = c ? 'typing' : 'empty';
-      if (field.dataset['state'] !== state) field.dataset['state'] = state;
-    }
-    if (caretRef.current) {
-      const solid = c && c.wordProgress < 0.6;
-      const on = solid || Math.floor(t / 530) % 2 === 0;
-      caretRef.current.style.opacity = on ? '1' : '0';
-    }
+    applyTyping(
+      composeTextRef.current,
+      caretRef.current,
+      { text: c?.typed ?? null, arriving: !!c && c.wordProgress < 0.6 },
+      t,
+      lastTyped,
+      false,
+    );
+    setData(composeRef.current, 'state', c ? 'typing' : 'empty');
 
     // ── Send button pulses at the moment of sending; the window answers with a tiny nudge,
     //    and the edge light flares whenever anything arrives.
     const last = plan.messages[structure.landed];
     const lastAge = last ? t - last.appearAt : Infinity;
-    if (sendRef.current) {
-      const k = last?.side === 'out' ? bump(lastAge, 110) : 0;
-      sendRef.current.style.transform = `scale(${(1 + 0.16 * k).toFixed(3)})`;
-      const active = c || (last?.side === 'out' && lastAge < 300) ? '1' : '0';
-      if (sendRef.current.dataset['active'] !== active) sendRef.current.dataset['active'] = active;
-    }
-    if (kickRef.current) {
-      const k = bump(lastAge, 160) * (last?.side === 'out' ? 1 : 0.5);
-      kickRef.current.style.transform = `translate3d(0, ${(-2.2 * k).toFixed(2)}px, 0) scale(${(1 + 0.0035 * k).toFixed(4)})`;
-    }
-    if (flashRef.current) {
-      const k = last ? clamp(lastAge / 90) * Math.exp(-Math.max(0, lastAge - 90) / 650) : 0;
-      flashRef.current.style.opacity = (0.65 * k).toFixed(3);
-    }
-    if (statusRef.current) {
-      const typing = structure.typingId !== null ? '1' : '0';
-      if (statusRef.current.dataset['typing'] !== typing)
-        statusRef.current.dataset['typing'] = typing;
-    }
+    const sent = last?.side === 'out';
+    const pulse = sent ? nudge(lastAge, 110) : 0;
+    setTransform(sendRef.current, `scale(${(1 + 0.16 * pulse).toFixed(3)})`);
+    setData(sendRef.current, 'active', c || (sent && lastAge < 300) ? '1' : '0');
+    const k = nudge(lastAge, 160) * (sent ? 1 : 0.5);
+    setTransform(kickRef.current, transform({ y: -2.2 * k, scale: 1 + 0.0035 * k }));
+    setStyle(flashRef.current, 'opacity', (0.65 * flash(lastAge, 90, 650)).toFixed(3));
+    setData(statusRef.current, 'typing', structure.typingId !== null ? '1' : '0');
   });
 
   const contact = track?.artists[0] ?? 'Unknown';
@@ -236,7 +219,7 @@ export function Thread({
     <div className="msg-thread">
       <div className="scene-floor" aria-hidden />
       {/* The artwork hangs further back in the room, like a second screen. */}
-      <FloatingRig
+      <Rig
         className="msg-thread__art"
         drift={{ rotY: -16, rotX: 2, z: -260, ampY: 1.2, ampX: 0.5, ampLift: 6, phase: 2.1 }}
       >
@@ -245,9 +228,9 @@ export function Thread({
             <Artwork track={track} />
           </div>
         </EdgePanel>
-      </FloatingRig>
+      </Rig>
 
-      <FloatingRig className="msg-thread__rig" drift={{ rotY: 5, rotX: 1.6, ampY: 1.4 }}>
+      <Rig className="msg-thread__rig" drift={{ rotY: 5, rotX: 1.6, ampY: 1.4 }}>
         <div className="msg-thread__kick" ref={kickRef}>
           <EdgePanel
             className="msg-thread__window"
@@ -323,33 +306,33 @@ export function Thread({
             </footer>
           </EdgePanel>
         </div>
-      </FloatingRig>
+      </Rig>
     </div>
   );
 }
 
 /** Reveal an incoming bubble through a rounded window growing out of the typing bubble. */
-function morph(
-  el: HTMLElement,
-  age: number,
-  s: number,
-  size: { w: number; h: number },
-  from: { w: number; h: number },
-) {
+function morph(el: HTMLElement, age: number, s: number, size: Box, from: Box) {
   const bubble = el.firstElementChild as HTMLElement | null;
   if (!bubble) return;
   const text = bubble.firstElementChild as HTMLElement | null;
   if (age > 900) {
-    if (bubble.style.clipPath) bubble.style.clipPath = '';
-    if (text && text.style.opacity !== '') text.style.opacity = '';
+    setStyle(bubble, 'clipPath', '');
+    setStyle(text, 'opacity', '');
     return;
   }
-  const w = mix(Math.min(size.w, from.w), size.w, s);
-  const h = mix(Math.min(size.h, from.h), size.h, s);
-  const r = Math.min(h / 2, 19);
-  // Anchored bottom-left like the typing bubble; a negative left inset keeps the tail visible.
-  bubble.style.clipPath = `inset(${(size.h - h).toFixed(1)}px ${(size.w - w).toFixed(1)}px 0 -12px round ${r.toFixed(1)}px)`;
-  if (text) text.style.opacity = smoothstep(60, 260, age).toFixed(3);
+  const shown = {
+    w: mix(Math.min(size.w, from.w), size.w, s),
+    h: mix(Math.min(size.h, from.h), size.h, s),
+  };
+  // Anchored bottom-left like the typing bubble; the bleed keeps the tail visible.
+  const clip = revealClip(size, shown, {
+    anchor: 'bottom-left',
+    radius: Math.min(shown.h / 2, 19),
+    bleed: 12,
+  });
+  setStyle(bubble, 'clipPath', clip);
+  setStyle(text, 'opacity', smoothstep(60, 260, age).toFixed(3));
 }
 
 function Separator({ label }: { label: string }) {
@@ -372,10 +355,7 @@ function Separator({ label }: { label: string }) {
 function Receipt({ m, getTime, seed }: { m: PlannedMessage; getTime: () => number; seed: number }) {
   const ref = useRef<HTMLDivElement>(null);
   useTicker(() => {
-    const el = ref.current;
-    if (!el) return;
-    const read = String(m.readAt !== null && getTime() >= m.readAt);
-    if (el.dataset['read'] !== read) el.dataset['read'] = read;
+    setData(ref.current, 'read', String(m.readAt !== null && getTime() >= m.readAt));
   });
   return (
     <div className="thread-receipt" ref={ref} data-read="false">

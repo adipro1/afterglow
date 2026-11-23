@@ -1,6 +1,16 @@
 import { memo } from 'react';
-import { clamp } from '@/animation/easing';
-import { spring, springs } from '@/animation/spring';
+import {
+  Words,
+  applyWordStates,
+  enter,
+  isSung,
+  ramp,
+  setOpacity,
+  setStyle,
+  setTransform,
+  springs,
+  wave,
+} from '@/engine';
 import type { PlannedMessage, Reaction } from './plan';
 
 const TAIL = 'M0 0 C0 8 3 13 11 15.5 C5 16.5 1.5 15 0 13 Z';
@@ -23,14 +33,7 @@ export const Bubble = memo(function Bubble({
   return (
     <div className={`bubble bubble--${m.side} ${shape} ${className}`} data-msg={m.id}>
       <span className="bubble__text">
-        {m.words.map((w, i) => (
-          <span key={i}>
-            {i > 0 && ' '}
-            <span className="bw" data-sung={m.side === 'out' ? '1' : '0'}>
-              {w.text}
-            </span>
-          </span>
-        ))}
+        <Words words={m.words} wordClass="bw" attr="sung" initial={m.side === 'out' ? '1' : '0'} />
       </span>
       {tail && (
         <svg className="bubble__tail" viewBox="0 0 12 16" aria-hidden>
@@ -86,24 +89,19 @@ export function applyTypingDots(root: Element | null, t: number) {
   if (!root) return;
   const dots = root.querySelectorAll<HTMLElement>('.typing-dots i');
   for (let i = 0; i < dots.length; i++) {
-    const phase = (((t / 1300 - i * 0.18) % 1) + 1) % 1;
-    const k = phase < 0.5 ? Math.sin((phase / 0.5) * Math.PI) ** 2 : 0;
-    const d = dots[i]!;
-    d.style.transform = `translateY(${(-1.6 * k).toFixed(2)}px) scale(${(0.86 + 0.18 * k).toFixed(3)})`;
-    d.style.opacity = (0.34 + 0.56 * k).toFixed(3);
+    const k = wave(t, i, 1300, 0.18);
+    setTransform(
+      dots[i],
+      `translateY(${(-1.6 * k).toFixed(2)}px) scale(${(0.86 + 0.18 * k).toFixed(3)})`,
+    );
+    setStyle(dots[i], 'opacity', (0.34 + 0.56 * k).toFixed(3));
   }
 }
 
 /** Light up the words of message `m` that have been sung by time t. */
 export function applySungWords(el: Element | null, m: PlannedMessage, t: number) {
   if (!el || m.side === 'out') return;
-  const spans = el.querySelectorAll<HTMLElement>('.bw');
-  for (let i = 0; i < spans.length; i++) {
-    const w = m.words[i];
-    const sung = !w || t >= w.startMs - 40 ? '1' : '0';
-    const span = spans[i]!;
-    if (span.dataset['sung'] !== sung) span.dataset['sung'] = sung;
-  }
+  applyWordStates(el, '.bw', 'sung', (i) => (isSung(m.words[i], t) ? '1' : '0'));
 }
 
 /** Pop the tapback in with a bouncy spring once its moment comes. */
@@ -111,15 +109,7 @@ export function applyReaction(el: Element | null, m: PlannedMessage, t: number) 
   if (!el || !m.reaction) return;
   const tb = el.querySelector<HTMLElement>('.tapback');
   if (!tb) return;
-  const age = t - m.reaction.at;
-  if (age <= 0) {
-    if (tb.style.opacity !== '0') {
-      tb.style.opacity = '0';
-      tb.style.transform = 'scale(0.2)';
-    }
-    return;
-  }
-  const s = spring(age, springs.pop);
-  tb.style.opacity = clamp(age / 90).toFixed(3);
-  tb.style.transform = `scale(${(0.2 + 0.8 * s).toFixed(4)}) rotate(${((1 - s) * -24).toFixed(2)}deg)`;
+  const s = enter(t, m.reaction.at, springs.pop);
+  setOpacity(tb, ramp(t, m.reaction.at, 90), { hideBelow: null });
+  setTransform(tb, `scale(${(0.2 + 0.8 * s).toFixed(4)}) rotate(${((1 - s) * -24).toFixed(2)}deg)`);
 }

@@ -1,19 +1,34 @@
 import { useMemo, useRef } from 'react';
-import { FloatingRig } from '@/design/FloatingRig';
-import { ambient } from '@/engine/ambient';
-import { useTicker } from '@/engine/ticker';
-import { clamp, hash01, mix, smoothstep } from '@/animation/easing';
-import { spring, springs } from '@/animation/spring';
+import {
+  Rig,
+  ambient,
+  applyTyping,
+  clamp,
+  enter,
+  flowStack,
+  hash01,
+  makeField,
+  mix,
+  motePose,
+  ramp,
+  setData,
+  setSteppedBlur,
+  setStyle,
+  setTransform,
+  smoothstep,
+  springs,
+  transform,
+  useTicker,
+} from '@/engine';
 import type { SceneProps } from '../types';
 import { Bubble, TypingBubble, applyReaction, applySungWords, applyTypingDots } from './Bubble';
-import { composeAt, type ConversationPlan } from './plan';
+import { composeAt, type ConversationPlan, type PlannedMessage } from './plan';
 import type { ConversationStructure } from './useConversation';
 
 const KEEP = 7;
 /** Per step back into the dark: rise (cqh), recede (px), blur (px), fade. */
 const STEP = { y: 15, z: 260, blur: 1.5, fade: 0.2 };
 const BOKEH = 14;
-const TAU = Math.PI * 2;
 
 /**
  * Drift — no interface at all. Each line hangs in space as a large bubble; as new ones arrive
@@ -41,19 +56,17 @@ export function Drift({
   const composeTextRef = useRef<HTMLSpanElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
   const bokehRef = useRef<HTMLDivElement>(null);
-  const blurCache = useRef(new Map<string, string>());
   const lastTyped = useRef('');
 
   const bokeh = useMemo(
     () =>
-      Array.from({ length: BOKEH }, (_, i) => ({
-        x: hash01(i, seed + 31) * 100,
-        y: hash01(i, seed + 32) * 100,
-        size: 30 + hash01(i, seed + 33) * 120,
-        depth: hash01(i, seed + 34),
-        period: 26_000 + hash01(i, seed + 35) * 30_000,
-        warm: hash01(i, seed + 36) < 0.5,
-      })),
+      makeField(seed, {
+        count: BOKEH,
+        minSize: 30,
+        maxSize: 150,
+        minPeriod: 26_000,
+        maxPeriod: 56_000,
+      }),
     [seed],
   );
 
@@ -64,23 +77,22 @@ export function Drift({
     const msgs = plan.messages;
     const last = structure.landed;
 
-    // Arrival progress of every message from `from` to the next one, and how deep each
-    // message sits = the sum of arrivals newer than it (continuous, so recession animates).
-    const arrive = (i: number) =>
-      i < msgs.length ? spring(t - msgs[i]!.appearAt, springs.glide) : 0;
-    let newer = arrive(last + 1);
-    const depthOf = new Map<number, number>();
-    for (let i = last; i >= from; i--) {
-      depthOf.set(i, newer);
-      newer += arrive(i);
-    }
+    // How deep each message sits = the sum of the arrivals newer than it (continuous, so the
+    // recession animates). The next message — not landed yet — already starts pushing, and the
+    // title card sits behind the oldest message.
+    const next = msgs[last + 1];
+    const column: (PlannedMessage | null)[] = [next ?? null, ...[...shown].reverse(), null];
+    const depths = flowStack(column, {
+      size: () => 0,
+      presence: (m) => (m ? enter(t, m.appearAt, springs.glide) : 0),
+    });
+    const depthOf = (i: number) => depths[i]!.depth;
 
-    shown.forEach((m) => {
+    shown.forEach((m, j) => {
       const el = space.querySelector<HTMLElement>(`[data-drift="${m.id}"]`);
       if (!el) return;
-      const depth = depthOf.get(m.index) ?? 0;
-      const age = t - m.appearAt;
-      const s = spring(age, springs.land);
+      const depth = depthOf(shown.length - j);
+      const s = enter(t, m.appearAt, springs.land);
       const side = m.side === 'in' ? -1 : 1;
       // Each message gets its own seeded lateral position so the field never looks gridded.
       const x = side * (9 + hash01(m.index, seed) * 9) + (hash01(m.index, seed + 1) - 0.5) * 4;
@@ -91,53 +103,50 @@ export function Drift({
       const z = -depth * STEP.z + (1 - s) * (m.side === 'out' ? 40 : 150);
       const rotY = side * -6 * (1 - Math.min(depth, 3) / 4);
       const scale = mix(m.side === 'out' ? 0.7 : 0.9, 1, s);
-      el.style.transform = `translate3d(calc(${x.toFixed(2)}cqw - 50%), ${y.toFixed(2)}cqh, ${z.toFixed(1)}px) rotateY(${rotY.toFixed(2)}deg) scale(${scale.toFixed(4)})`;
-      el.style.opacity = (clamp(age / 160) * clamp(1 - depth * STEP.fade)).toFixed(3);
+      setTransform(
+        el,
+        `translate3d(calc(${x.toFixed(2)}cqw - 50%), ${y.toFixed(2)}cqh, ${z.toFixed(1)}px) rotateY(${rotY.toFixed(2)}deg) scale(${scale.toFixed(4)})`,
+      );
+      setStyle(el, 'opacity', (ramp(t, m.appearAt, 160) * clamp(1 - depth * STEP.fade)).toFixed(3));
       // Blur in half-pixel steps, and none at all near the front, so the GPU only re-blurs
       // when a message actually moves back a step.
-      const b = Math.round(Math.max(0, depth - 0.25) * STEP.blur * 2) / 2;
-      const blur = b > 0 ? `blur(${b.toFixed(1)}px)` : 'none';
-      if (blurCache.current.get(m.id) !== blur) {
-        blurCache.current.set(m.id, blur);
-        el.style.filter = blur;
-      }
+      setSteppedBlur(el, Math.max(0, depth - 0.25) * STEP.blur);
       applySungWords(el, m, t);
       applyReaction(el, m, t);
     });
 
     // The title card is the conversation's first "message": it recedes as lines arrive.
-    if (titleRef.current) {
-      const d = from === 0 ? newer : 99;
-      const intro = smoothstep(0, 1400, t);
-      titleRef.current.style.transform = `translate3d(-50%, ${(-6 - d * STEP.y * 0.8).toFixed(2)}cqh, ${(-d * STEP.z).toFixed(1)}px)`;
-      titleRef.current.style.opacity = (intro * clamp(1 - d * 0.35)).toFixed(3);
-      const tb = d < 0.2 ? 'none' : `blur(${(Math.round(d * STEP.blur * 2) / 2).toFixed(1)}px)`;
-      if (blurCache.current.get('title') !== tb) {
-        blurCache.current.set('title', tb);
-        titleRef.current.style.filter = tb;
-      }
+    const title = titleRef.current;
+    if (title) {
+      const d = from === 0 ? depthOf(column.length - 1) : 99;
+      setTransform(
+        title,
+        transform({ x: '-50%', y: `${(-6 - d * STEP.y * 0.8).toFixed(2)}cqh`, z: -d * STEP.z }, 1),
+      );
+      setStyle(title, 'opacity', (smoothstep(0, 1400, t) * clamp(1 - d * 0.35)).toFixed(3));
+      setSteppedBlur(title, d < 0.2 ? 0 : d * STEP.blur);
     }
 
     const tyEl = space.querySelector<HTMLElement>('[data-drift="typing"]');
     if (tyEl && typing) {
-      const age = t - (typing.typingFrom ?? 0);
-      const p = spring(age, springs.pop);
+      const typedFrom = typing.typingFrom ?? 0;
       const x = -(9 + hash01(typing.index, seed) * 9);
-      tyEl.style.transform = `translate3d(calc(${x.toFixed(2)}cqw - 50%), 12cqh, 0) scale(${(0.5 + 0.5 * p).toFixed(3)})`;
-      tyEl.style.opacity = clamp(age / 120).toFixed(3);
+      setTransform(
+        tyEl,
+        `translate3d(calc(${x.toFixed(2)}cqw - 50%), 12cqh, 0) scale(${(0.5 + 0.5 * enter(t, typedFrom, springs.pop)).toFixed(3)})`,
+      );
+      setStyle(tyEl, 'opacity', ramp(t, typedFrom, 120).toFixed(3));
       applyTypingDots(tyEl, t);
     }
 
     // The light in the room leans toward whoever spoke last (cross-fading two fixed lights).
     const lastMsg = msgs[last];
     const prevSide = msgs[last - 1]?.side ?? null;
-    const k = lastMsg ? spring(t - lastMsg.appearAt, springs.settle) : 0;
+    const k = lastMsg ? enter(t, lastMsg.appearAt, springs.settle) : 0;
     const weight = (side: 'in' | 'out') =>
       (lastMsg?.side === side ? k : 0) + (prevSide === side ? 1 - k : 0);
-    if (glowInRef.current)
-      glowInRef.current.style.opacity = (0.25 + 0.75 * weight('in')).toFixed(3);
-    if (glowOutRef.current)
-      glowOutRef.current.style.opacity = (0.25 + 0.75 * weight('out')).toFixed(3);
+    setStyle(glowInRef.current, 'opacity', (0.25 + 0.75 * weight('in')).toFixed(3));
+    setStyle(glowOutRef.current, 'opacity', (0.25 + 0.75 * weight('out')).toFixed(3));
 
     // Out-of-focus motes drifting slowly upward through the depth of the room.
     const now = ambient.now();
@@ -145,30 +154,23 @@ export function Drift({
     if (kids) {
       for (let i = 0; i < kids.length; i++) {
         const b = bokeh[i]!;
-        const ph = (now / b.period + b.depth) % 1;
-        const yy = 110 - ph * 120;
-        const xx = b.x + Math.sin(ph * TAU * 2 + i) * 2;
-        const twinkle = 0.5 + 0.5 * Math.sin(now / 2300 + i * 1.7);
-        const fade = smoothstep(0, 0.15, ph) * (1 - smoothstep(0.85, 1, ph));
+        const pose = motePose(b, i, now);
         const node = kids[i] as HTMLElement;
-        node.style.transform = `translate3d(${xx.toFixed(2)}cqw, ${yy.toFixed(2)}cqh, 0)`;
-        node.style.opacity = ((0.18 + 0.3 * (1 - b.depth)) * fade * (0.7 + 0.3 * twinkle)).toFixed(
-          3,
-        );
+        setTransform(node, `translate3d(${pose.x.toFixed(2)}cqw, ${pose.y.toFixed(2)}cqh, 0)`);
+        setStyle(node, 'opacity', ((0.18 + 0.3 * (1 - b.depth)) * pose.k).toFixed(3));
       }
     }
 
     // Outgoing lines appear as glowing typed text at the bottom of the frame.
     const c = composeAt(plan, t);
-    const compose = composeRef.current;
-    if (compose) {
-      // Keep the last words while the text fades away after sending.
-      const typed = c?.typed ?? lastTyped.current;
-      if (typed !== lastTyped.current && composeTextRef.current)
-        composeTextRef.current.textContent = lastTyped.current = typed;
-      const open = c ? '1' : '0';
-      if (compose.dataset['open'] !== open) compose.dataset['open'] = open;
-    }
+    applyTyping(
+      composeTextRef.current,
+      null,
+      { text: c?.typed ?? null, arriving: false },
+      t,
+      lastTyped,
+    );
+    setData(composeRef.current, 'open', c ? '1' : '0');
   });
 
   return (
@@ -179,12 +181,12 @@ export function Drift({
         {bokeh.map((b, i) => (
           <i
             key={i}
-            className={b.warm ? 'is-warm' : ''}
+            className={b.alt ? 'is-warm' : ''}
             style={{ width: b.size * (1 - b.depth * 0.6), height: b.size * (1 - b.depth * 0.6) }}
           />
         ))}
       </div>
-      <FloatingRig
+      <Rig
         className="msg-drift__space"
         drift={{ rotX: 4, rotY: 0, ampY: 3.2, ampX: 1.4, ampLift: 10, phase: 1.7 }}
       >
@@ -205,7 +207,7 @@ export function Drift({
             </div>
           )}
         </div>
-      </FloatingRig>
+      </Rig>
       <div className="drift-compose" ref={composeRef} data-open="0">
         <span className="drift-compose__text" ref={composeTextRef} />
         <span className="drift-compose__caret" />

@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { LyricLine, LyricsDocument, TrackRef } from '@shared/lyrics';
 import { locate } from '@/lyrics/cursor';
-import { useTicker } from '@/engine/ticker';
+import { Words, applyWordStates, setData, setText, setTransform, useTicker } from '@/engine';
 import { formatTime } from '@/app/format';
 import type { SceneProps } from '../types';
 
@@ -38,7 +38,6 @@ export function PreludeView({
   const anchorRef = useRef(-1);
   const rootRef = useRef<HTMLDivElement>(null);
   const timeRef = useRef<HTMLSpanElement>(null);
-  const lastSec = useRef(-1);
 
   const entries = useMemo(() => visibleEntries(lyrics, track, anchor), [lyrics, track, anchor]);
 
@@ -47,11 +46,7 @@ export function PreludeView({
     if (!root) return;
     const t = getTime();
 
-    const sec = Math.floor(t / 1000);
-    if (sec !== lastSec.current && timeRef.current) {
-      lastSec.current = sec;
-      timeRef.current.textContent = formatTime(t);
-    }
+    setText(timeRef.current, formatTime(t));
     if (!lyrics) return;
 
     const pos = locate(lyrics, t);
@@ -71,22 +66,12 @@ export function PreludeView({
       t - prevLine.endMs > BREAK_AFTER_MS &&
       pos.msToNextLine > BREAK_LEAD_MS;
     const active = !inBreak || current.classList.contains('pl--title');
-    if (current.dataset['active'] !== String(active)) current.dataset['active'] = String(active);
+    setData(current, 'active', String(active));
 
-    const words = current.querySelectorAll<HTMLElement>('.w');
-    for (let i = 0; i < words.length; i++) {
-      // Once the line has finished (gap or break), every word reads as sung.
-      const state =
-        pos.lineIndex < 0
-          ? 'past'
-          : i < pos.wordIndex
-            ? 'past'
-            : i === pos.wordIndex
-              ? 'now'
-              : 'next';
-      const el = words[i]!;
-      if (el.dataset['state'] !== state) el.dataset['state'] = state;
-    }
+    // Once the line has finished (gap or break), every word reads as sung.
+    applyWordStates(current, '.w', 'state', (i) =>
+      pos.lineIndex < 0 || i < pos.wordIndex ? 'past' : i === pos.wordIndex ? 'now' : 'next',
+    );
   });
 
   // Seeks and track changes jump instead of animating through every intermediate line.
@@ -139,14 +124,12 @@ export function PreludeView({
               <>
                 {e.line?.singer === 'feat' && <span className="pl__eyebrow caps">feat.</span>}
                 <span className="pl__text">
-                  {(e.line!.words ?? [{ text: e.line!.text }]).map((w, i) => (
-                    <span key={i}>
-                      {i > 0 && ' '}
-                      <span className="w" data-state="next">
-                        {w.text}
-                      </span>
-                    </span>
-                  ))}
+                  <Words
+                    words={e.line!.words ?? [{ text: e.line!.text }]}
+                    wordClass="w"
+                    attr="state"
+                    initial="next"
+                  />
                 </span>
               </>
             )}
@@ -184,7 +167,8 @@ function layoutSlots(root: HTMLElement) {
   const place = (slot: number, y: number, scale: number, opacity: number) => {
     const el = bySlot.get(slot);
     if (!el) return;
-    el.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0) scale(${scale})`;
+    // Slots animate with CSS transitions (see prelude.css), so these are targets, not frames.
+    setTransform(el, `translate3d(0, ${y.toFixed(1)}px, 0) scale(${scale})`);
     el.style.opacity = String(opacity);
   };
 

@@ -12,7 +12,7 @@ export interface Size {
  * re-wraps, fonts settling, the window resizing — plus a cache of the elements themselves, so
  * per-frame code reads both from maps without querying the DOM or forcing layout.
  */
-export function useSizes(
+export function useMeasure(
   rootRef: RefObject<HTMLElement | null>,
   attr: string,
   deps: DependencyList,
@@ -39,4 +39,18 @@ export function useSizes(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
   return { sizes, els };
+}
+
+/** An element's inner height, tracked in a ref (no re-render) as it resizes. */
+export function useClientHeight(ref: RefObject<HTMLElement | null>) {
+  const h = useRef(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => (h.current = el.clientHeight));
+    ro.observe(el);
+    h.current = el.clientHeight;
+    return () => ro.disconnect();
+  }, [ref]);
+  return h;
 }

@@ -1,5 +1,5 @@
 import { EdgePanel } from '@/design/EdgePanel';
-import { FloatingRig } from '@/design/FloatingRig';
+import { Rig } from '@/engine';
 import type { SceneProps, VisualizationModule } from '../types';
 import { preludeMeta } from './meta';
 import { PreludeView } from './PreludeView';
@@ -9,7 +9,7 @@ function PreludeScene(props: SceneProps) {
   return (
     <div className="prelude-scene">
       <div className="scene-floor" aria-hidden />
-      <FloatingRig className="prelude-scene__rig">
+      <Rig className="prelude-scene__rig">
         <EdgePanel
           className="prelude-scene__window"
           radius={16}
@@ -19,7 +19,7 @@ function PreludeScene(props: SceneProps) {
         >
           <PreludeView {...props} />
         </EdgePanel>
-      </FloatingRig>
+      </Rig>
     </div>
   );
 }

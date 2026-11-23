@@ -25,10 +25,12 @@ to the next phase (see `docs/phase-0-plan.md` §11 for the roadmap).
 ## Visualisation plugins
 
 - Each lives in `src/renderer/src/visualizations/<id>/` with `meta.ts` (registered in `registry.ts`) and a lazily-imported `index.tsx` default-exporting `{ meta, Scene }`.
-- Scenes get `SceneProps`; read time with `getTime()` inside `useTicker`. Use closed-form `spring()`/easing from `src/renderer/src/animation/` — never stateful per-frame tweens.
+- Scenes get `SceneProps`; read time with `getTime()` inside `useTicker`. Import everything from the motion engine `@/engine` (`src/renderer/src/engine/`, overview in its `index.ts` and `docs/phase-3-engine.md`) — never stateful per-frame tweens, never raw `el.style` writes.
+- Engine building blocks: `enter`/`presence`/`ramp`/`flash`/`pulse`/`wave` (timeline), `flowStack` (items making room for each other), `useMeasure` (sizes without reflow), `Words`/`applyWordStates`/`applyTyping` (text), `Rig`/`breathe`/`shake`/`nudge`/`move` (camera), `revealClip` + `sceneTransitions` (transitions), `makeField`/`motePose` (particles), and the cached writers `setTransform`/`setOpacity`/`setStyle`/`setData`/`setText` + `transform()`.
+- New reusable motion goes into the engine (with a unit test in `tests/unit/engine.test.ts`), not into a scene.
 - Ambient (non-musical) motion uses `ambient.now()` so tests can freeze it.
 - Size compositions with container units (`cqw`/`cqh`) — the scene layer is a size container.
-- Add screenshot moments to `tests/e2e/<id>.spec.ts` and run `tests/e2e/perf.spec.ts` (must hold ~60 fps on the Iris Xe, on battery). Review motion with frame bursts (`tests/e2e/motion.spec.ts`).
+- Add screenshot moments to `tests/e2e/<id>.spec.ts` and run `tests/e2e/perf.spec.ts` (must hold ~60 fps on the Iris Xe, on battery). Review motion with frame bursts (`tests/e2e/motion.spec.ts`). Frozen screenshots are pixel-exact between runs (looping CSS animations are held, the test window always fits the screen), so a refactor can be proven regression-free by diffing screenshots before/after.
 - GPU budget: animate only `transform` and `opacity` on elements with `will-change`. No per-frame changes to `filter`, `backdrop-filter`, `mask`, `clip-path` on large elements, CSS variables inherited by big subtrees, or `mix-blend-mode`. Static effects are fine; animated ones need a compositor-only equivalent (cross-fade pre-drawn layers, overlays).
 - Springs: use `springs.*` / `appleSpring(response, dampingFraction)`; in CSS use `--ease-spring` / `--ease-spring-soft`.
 
