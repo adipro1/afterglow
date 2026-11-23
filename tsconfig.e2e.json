@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    "outDir": "out/tsc-e2e"
+  },
+  "include": ["playwright.config.ts", "tests/e2e/**/*", "src/preload/*.d.ts", "src/shared/**/*"]
+}

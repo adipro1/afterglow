@@ -1,0 +1,49 @@
+.artwork {
+  position: relative;
+  flex: none;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--ink-3);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.06),
+    0 8px 24px -8px rgb(0 0 0 / 0.8);
+}
+
+/* "Delivered": a phone screen's blue light leaking into a dark bedroom. */
+.artwork--signal {
+  background:
+    radial-gradient(60% 45% at 62% 58%, rgb(120 150 230 / 0.95), transparent 70%),
+    radial-gradient(90% 70% at 20% 100%, rgb(255 45 138 / 0.35), transparent 60%),
+    linear-gradient(160deg, #0b1022, #05060c 70%);
+}
+.artwork--signal .artwork__mark {
+  position: absolute;
+  left: 50%;
+  top: 34%;
+  width: 22%;
+  height: 40%;
+  border-radius: 3px;
+  border: 1px solid rgb(225 235 255 / 0.85);
+  box-shadow: 0 0 12px rgb(160 190 255 / 0.8);
+  transform: translateX(-30%) rotate(-8deg);
+}
+
+/* "Long Way Round": last light on a highway horizon. */
+.artwork--dusk {
+  background:
+    linear-gradient(180deg, transparent 58%, #120a10 58.5%),
+    radial-gradient(70% 40% at 50% 60%, #ffb36b, #d2546a 45%, #2a1030 100%);
+}
+.artwork--dusk .artwork__mark {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 2px;
+  height: 42%;
+  background: linear-gradient(180deg, transparent, rgb(255 220 180 / 0.9));
+  transform: translateX(-50%) perspective(40px) rotateX(40deg);
+}
+
+.artwork--blank {
+  background: linear-gradient(160deg, var(--ink-3), var(--ink-1));
+}

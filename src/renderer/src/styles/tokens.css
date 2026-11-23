@@ -1,0 +1,53 @@
+/*
+ * AFTERGLOW design tokens.
+ * Derived from the reference direction: darkness as material, one restrained edge-light accent,
+ * content colour borrowed from the artwork (--tint-*), never from the chrome.
+ */
+:root {
+  /* Ink — the void and the few surfaces that sit in it */
+  --ink-0: #040306;
+  --ink-1: #0a090e;
+  --ink-2: #121018;
+  --ink-3: #1c1923;
+  --ink-line: rgb(255 255 255 / 0.07);
+
+  /* Text */
+  --text-hi: #f4f1ec;
+  --text-mid: #bdb7c2;
+  --text-lo: #7d7785;
+  --text-ghost: rgb(244 241 236 / 0.2);
+
+  /* Edge light */
+  --edge-a: #ff2d8a;
+  --edge-b: #7b3cff;
+
+  /* Per-track tint (overridden at runtime from artwork) */
+  --tint-1: #e8c27a;
+  --tint-2: #6f86b8;
+  --tint-glow: rgb(232 194 122 / 0.18);
+
+  /* Type */
+  --font-ui: 'Inter Variable', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Inter Variable', 'Segoe UI Variable Display', sans-serif;
+  --font-condensed: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'Cascadia Mono', Consolas, monospace;
+
+  --fs-micro: 10.5px;
+  --fs-caption: 12px;
+  --fs-body: 14px;
+  --track-caps: 0.22em;
+
+  /* Motion */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-in-out-sine: cubic-bezier(0.37, 0, 0.63, 1);
+  --ease-in-quad: cubic-bezier(0.11, 0, 0.5, 0);
+  --dur-fast: 180ms;
+  --dur-med: 420ms;
+  --dur-slow: 900ms;
+
+  /* Geometry */
+  --radius-window: 14px;
+  --radius-control: 8px;
+  --titlebar-h: 40px;
+}

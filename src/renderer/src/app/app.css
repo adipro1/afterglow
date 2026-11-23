@@ -1,0 +1,371 @@
+.app {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(70% 55% at 50% 46%, rgb(123 60 255 / 0.035), transparent 70%), var(--ink-0);
+}
+
+/* ───────── Title bar ───────── */
+.titlebar {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: var(--titlebar-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-left: 18px;
+  z-index: 20;
+  -webkit-app-region: drag;
+  transition: opacity var(--dur-med) var(--ease-out-quart);
+}
+.app.is-blurred .titlebar {
+  opacity: 0.55;
+}
+.titlebar__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-lo);
+}
+.titlebar__brand .caps {
+  letter-spacing: 0.34em;
+  font-size: 10px;
+}
+.titlebar__glint {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--edge-a);
+  box-shadow:
+    0 0 6px var(--edge-a),
+    0 0 14px rgb(255 45 138 / 0.6);
+}
+.titlebar__controls {
+  display: flex;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+.winbtn {
+  width: 46px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--text-lo);
+  transition:
+    background var(--dur-fast),
+    color var(--dur-fast);
+}
+.winbtn:hover {
+  background: rgb(255 255 255 / 0.05);
+  color: var(--text-hi);
+}
+.winbtn--close:hover {
+  background: color-mix(in oklab, var(--edge-a), black 30%);
+  color: white;
+}
+
+/* ───────── Stage ───────── */
+.stage {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  perspective: 2200px;
+  perspective-origin: 50% 40%;
+  padding: calc(var(--titlebar-h) + 16px) 6vw 132px;
+}
+.app.is-fullscreen .stage {
+  padding: 6vh 7vw 9vh;
+}
+.stage__rig {
+  width: min(1040px, 76vw);
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.stage__window {
+  width: 100%;
+  aspect-ratio: 16 / 8.6;
+  max-height: calc(100vh - 220px);
+}
+.app.is-fullscreen .stage__rig {
+  width: min(1320px, 78vw);
+}
+.app.is-fullscreen .stage__window {
+  max-height: 78vh;
+}
+/* Light from the window pooling on an unseen floor. */
+.stage__floor {
+  position: absolute;
+  left: 50%;
+  bottom: 9vh;
+  width: 62vw;
+  height: 18vh;
+  transform: translateX(-46%);
+  background: radial-gradient(
+    50% 50% at 60% 40%,
+    rgb(255 45 138 / 0.09),
+    rgb(123 60 255 / 0.04) 45%,
+    transparent 72%
+  );
+  filter: blur(10px);
+  pointer-events: none;
+}
+
+/* ───────── Prelude lyric view ───────── */
+.prelude {
+  --lyric-size: clamp(30px, 4.1vw, 64px);
+  position: absolute;
+  inset: 0;
+  padding: 30px 7.5% 0;
+}
+.prelude__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  color: var(--text-lo);
+}
+.prelude__time {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-mid);
+}
+.prelude__time-total {
+  color: var(--text-lo);
+}
+.prelude__lines {
+  position: absolute;
+  left: 7.5%;
+  right: 9%;
+  top: 52%;
+}
+.pl {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  transform-origin: 0 0;
+  font-family: var(--font-display);
+  font-size: var(--lyric-size);
+  font-weight: 620;
+  line-height: 1.04;
+  letter-spacing: -0.028em;
+  color: var(--text-hi);
+  text-wrap: balance;
+  transition:
+    transform 900ms var(--ease-out-expo),
+    opacity 700ms var(--ease-out-quart);
+  will-change: transform, opacity;
+}
+.pl__eyebrow {
+  display: block;
+  margin-bottom: 0.9em;
+  font-size: 11px;
+  font-family: var(--font-ui);
+  letter-spacing: 0.3em;
+  color: var(--tint-1);
+  opacity: 0.85;
+}
+.pl:not([data-slot='0']) .pl__eyebrow {
+  opacity: 0;
+}
+.pl__eyebrow {
+  transition: opacity 400ms var(--ease-out-quart);
+}
+.pl--title .pl__text {
+  color: var(--text-mid);
+  font-weight: 300;
+  letter-spacing: -0.035em;
+}
+.pl[data-active='false'] {
+  opacity: 0.38 !important;
+}
+
+/* Word states — only meaningful on the current line. */
+.pl .w {
+  display: inline-block;
+  transition:
+    opacity 600ms var(--ease-out-quart),
+    color 900ms var(--ease-out-quart),
+    text-shadow 900ms var(--ease-out-quart);
+}
+.pl[data-slot='0'] .w[data-state='next'] {
+  opacity: 0.16;
+}
+.pl[data-slot='0'] .w[data-state='now'] {
+  color: var(--tint-1);
+  text-shadow: 0 0 28px color-mix(in oklab, var(--tint-1), transparent 55%);
+  animation: word-in 520ms var(--ease-out-expo) both;
+}
+.pl[data-slot='0'] .w[data-state='past'] {
+  color: var(--text-hi);
+}
+@keyframes word-in {
+  from {
+    opacity: 0.16;
+    transform: translateY(0.1em);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+.prelude.is-jump .pl,
+.prelude.is-jump .w {
+  transition: none !important;
+  animation: none !important;
+}
+
+/* ───────── Now-playing dock ───────── */
+.dock {
+  position: absolute;
+  left: 28px;
+  bottom: 26px;
+  width: 360px;
+  height: 104px;
+  z-index: 10;
+  transition:
+    opacity var(--dur-slow) var(--ease-out-quart),
+    transform var(--dur-slow) var(--ease-out-expo);
+}
+.dock .edge-panel__body {
+  padding: 14px 16px 0 14px;
+}
+.dock__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.dock__meta {
+  min-width: 0;
+  flex: 1;
+}
+.dock__title {
+  font-weight: 600;
+  font-size: 13.5px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dock__artist {
+  margin-top: 3px;
+  font-size: var(--fs-caption);
+  color: var(--text-lo);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dock__transport {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.dock__progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+.dock__time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-lo);
+  min-width: 28px;
+}
+.dock__time--total {
+  text-align: right;
+}
+.dock__bar {
+  position: relative;
+  flex: 1;
+  height: 14px;
+}
+.dock__bar.is-seekable {
+  cursor: pointer;
+}
+.dock__track,
+.dock__fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  margin-top: -0.5px;
+}
+.dock__track {
+  background: rgb(255 255 255 / 0.1);
+}
+.dock__fill {
+  background: linear-gradient(90deg, var(--text-mid), var(--text-hi));
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+}
+.dock__bar.is-seekable:hover .dock__track,
+.dock__bar.is-seekable:hover .dock__fill {
+  height: 3px;
+  margin-top: -1.5px;
+  border-radius: 2px;
+}
+
+.iconbtn {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-control);
+  color: var(--text-mid);
+  transition:
+    background var(--dur-fast),
+    color var(--dur-fast);
+}
+.iconbtn:hover {
+  background: rgb(255 255 255 / 0.06);
+  color: var(--text-hi);
+}
+.iconbtn--primary {
+  color: var(--text-hi);
+}
+
+/* ───────── Status cluster ───────── */
+.status {
+  position: absolute;
+  right: 28px;
+  bottom: 30px;
+  display: flex;
+  align-items: flex-end;
+  gap: 22px;
+  z-index: 10;
+  transition: opacity var(--dur-slow) var(--ease-out-quart);
+}
+.status__list {
+  display: flex;
+  gap: 22px;
+  margin: 0;
+}
+.status__list dt {
+  color: var(--text-lo);
+  font-size: 9.5px;
+  margin-bottom: 5px;
+}
+.status__list dd {
+  margin: 0;
+  font-size: var(--fs-caption);
+  color: var(--text-mid);
+}
+
+/* ───────── Fullscreen idle ───────── */
+.dock.is-hidden {
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+}
+.status.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.app.is-idle {
+  cursor: none;
+}
