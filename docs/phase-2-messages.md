@@ -55,9 +55,9 @@ Switch with **V** (variation) and **S** (scene). The name of the new scene shows
 
 ## Testing
 
-- **Unit:** 41 tests (+21) — the conversation planner (sides, chorus consistency, grouping,
+- **Unit:** 44 tests (+24) — the conversation planner (sides, chorus consistency, grouping,
   typing/compose windows, separators, receipts, line-only and empty lyrics) and motion maths.
-- **End-to-end:** 44 tests. 27 screenshots of the three compositions at nine moments of the song,
+- **End-to-end:** 54 tests, including song-change tests (never a blank screen; the old conversation hands over) and motion frame bursts. 27 screenshots of the three compositions at nine moments of the song,
   behaviour checks (typing status, compose field, Delivered→Read, seeking backwards rebuilds the
   thread exactly), and the shell tests.
 - **Motion:** frame bursts 80 ms apart around a send and a reply, reviewed as contact sheets
@@ -66,13 +66,31 @@ Switch with **V** (variation) and **S** (scene). The name of the new scene shows
 
   | Scene                  | Average fps | 95th-percentile frame | Script per frame |
   | ---------------------- | ----------- | --------------------- | ---------------- |
-  | Messages · Thread      | 59.5        | 17.0 ms               | 1.0 ms           |
-  | Messages · Lock Screen | 60.0        | 16.9 ms               | 1.2 ms           |
+  | Messages · Thread      | 58.1        | 17.0 ms               | 0.9 ms           |
+  | Messages · Lock Screen | 60.0        | 16.9 ms               | 1.0 ms           |
   | Messages · Drift       | 60.0        | 16.9 ms               | 1.3 ms           |
-  | Prelude                | 60.0        | 17.0 ms               | 0.6 ms           |
+  | Prelude                | 60.0        | 17.0 ms               | 0.5 ms           |
 
   Prelude initially dropped frames (95th percentile 33 ms) because of a blur animation on its
   very large text; replacing the blur with a lift fixed it.
+
+## Polish round (owner feedback: "not smooth enough", "do more", skipping showed a blank screen)
+
+**Why it felt laggy — measured, then fixed:**
+
+| Cause                                                                                                                                                                                         | Fix                                                                                                                                     |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Song time sped up and slowed down by up to ±50 % as it chased each imprecise once-a-second position report                                                                                    | The clock now averages recent reports (jitter cancels out) and corrects by at most ~6 % speed — measured ±2–3 %, invisible              |
+| Every animated element read the clock at a slightly different moment within the frame (a few ms of random error)                                                                              | All animation samples the frame's own timestamp (`ticker.now()`), like Core Animation                                                   |
+| GPU passes every frame: per-word blur filters, a re-drawn animated SVG edge light, a blended grain overlay, frosted-glass cards, a mask, a filter-based screen dimmer, blurred scene switches | Each replaced with a compositor-only equivalent that looks the same (pre-drawn light layers that cross-fade, solid materials, overlays) |
+| The window was demoted to low priority when unfocused                                                                                                                                         | Background throttling off — a visualiser often plays unfocused                                                                          |
+| Testing with `npm run dev` (React debug build)                                                                                                                                                | `npm start` runs the optimised build                                                                                                    |
+
+The remaining occasional long frames were traced to the laptop itself (on battery, the app's thread waited for the CPU: 77 ms wall time for 8.6 ms of work).
+
+**Skipping songs:** the old conversation now sinks away frozen on its last frame while the new one rises, and every variation opens a song with something to look at — Thread: the contact's card ("iMessage · Today 1:49 AM"); Lock Screen: the phone wakes with a Now Playing widget; Drift: the song title, which then recedes into the dark as the first "message".
+
+**More animation:** springs retuned to Apple's response/damping model; the typing bubble grows into the incoming message (revealed through a rounded window so the corners never distort); sent bubbles rise out of the compose field carrying their text; iMessage-style tapbacks (♥ / ‼) pop onto some verse-closing lines; "Read 1:52 AM" receipts; the edge light flares on each arrival and the window gives a tiny nudge on send; the phone buzzes on the table for incoming messages and its wallpaper settles as the screen wakes; notification pile with layered edges; Drift gains drifting out-of-focus light motes and a room light that cross-fades toward whoever spoke last.
 
 ## Known limitations
 

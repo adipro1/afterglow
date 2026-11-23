@@ -24,12 +24,13 @@
     color-mix(in oklab, var(--tint-2), transparent 88%) 55%,
     transparent
   );
-  opacity: calc(0.25 + var(--wake) * 1.1);
-  filter: blur(18px);
+  opacity: 0.3;
   pointer-events: none;
+  will-change: opacity;
 }
 .phone {
   position: relative;
+  will-change: transform;
   width: 100%;
   height: 100%;
   border-radius: 13% / 6.3%;
@@ -40,13 +41,19 @@
     0 40px 80px -20px rgb(0 0 0 / 0.9);
 }
 .phone__screen {
-  --wake: 0.1;
   position: relative;
   width: 100%;
   height: 100%;
   overflow: hidden;
   border-radius: 11.5% / 5.6%;
   container-type: inline-size;
+  background: #05050a;
+}
+/* Wallpaper on its own layer so the wake "settle-zoom" is a pure compositor transform. */
+.phone__wall {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
   background:
     radial-gradient(
       120% 70% at 80% 110%,
@@ -59,8 +66,88 @@
       transparent 60%
     ),
     linear-gradient(180deg, #0b0a14, #05050a);
-  /* A sleeping screen is nearly black; it lifts when a message arrives. */
-  filter: brightness(calc(0.32 + var(--wake) * 0.72));
+}
+.phone__content {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+.phone__dim {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0.65;
+  pointer-events: none;
+  will-change: opacity;
+  z-index: 10;
+}
+
+/* Now Playing — the lock-screen media widget. */
+.lock-player {
+  position: absolute;
+  top: 37%;
+  left: 4.5%;
+  right: 4.5%;
+  display: flex;
+  align-items: center;
+  gap: 3.4cqw;
+  padding: 3.4cqw;
+  border-radius: 6cqw;
+  background: rgb(34 32 42 / 0.72);
+  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.08);
+  will-change: opacity;
+}
+.lock-player__art {
+  position: relative;
+  flex: none;
+  width: 14cqw;
+  height: 14cqw;
+  border-radius: 2.6cqw;
+  overflow: hidden;
+}
+.lock-player__art .artwork {
+  border-radius: 2.6cqw;
+  box-shadow: none;
+}
+.lock-player__meta {
+  flex: 1;
+  min-width: 0;
+}
+.lock-player__title {
+  font-size: 3.9cqw;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lock-player__artist {
+  font-size: 3.4cqw;
+  color: rgb(255 255 255 / 0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lock-player__bar {
+  height: 0.9cqw;
+  margin-top: 2cqw;
+  border-radius: 1cqw;
+  background: rgb(255 255 255 / 0.16);
+  overflow: hidden;
+}
+.lock-player__fill {
+  height: 100%;
+  background: rgb(255 255 255 / 0.75);
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+  will-change: transform;
+}
+.lock-player__times {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1cqw;
+  font-size: 2.6cqw;
+  color: rgb(255 255 255 / 0.45);
 }
 .phone__island {
   position: absolute;
@@ -105,7 +192,7 @@
 }
 .lock-list {
   position: absolute;
-  top: 40%;
+  top: calc(37% + 25cqw);
   left: 4.5%;
   right: 4.5%;
 }
@@ -118,11 +205,13 @@
   gap: 3cqw;
   padding: 3.4cqw 3.8cqw;
   border-radius: 6cqw;
-  background: rgb(38 36 44 / 0.62);
-  backdrop-filter: blur(16px) saturate(1.3);
+  /* Solid, not backdrop-blurred: behind it is a near-black wallpaper, so a real blur would look
+     identical and cost a GPU pass per card per frame. */
+  background: rgb(40 38 48);
   box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.08);
   transform-origin: 50% 0;
   will-change: transform, opacity;
+  transition: background 400ms var(--ease-out-quart);
   font-size: 4.1cqw;
   line-height: 1.3;
 }
@@ -161,7 +250,19 @@
   color: rgb(255 255 255 / 0.9);
 }
 .lock-card.is-out {
-  background: rgb(30 34 52 / 0.62);
+  background: rgb(32 36 56);
+}
+/* Cards tucked into the pile show only their edge: content fades, the material darkens. */
+.lock-card__icon,
+.lock-card__main {
+  transition: opacity 300ms var(--ease-out-quart);
+}
+.lock-card[data-piled='1'] {
+  background: rgb(30 29 37);
+}
+.lock-card[data-piled='1'] .lock-card__icon,
+.lock-card[data-piled='1'] .lock-card__main {
+  opacity: 0;
 }
 .lock-card.is-out .lock-card__icon {
   background: rgb(255 255 255 / 0.12);
@@ -176,8 +277,7 @@
   min-height: 10cqw;
   padding: 0 2.2cqw 0 4.2cqw;
   border-radius: 999px;
-  background: rgb(40 40 52 / 0.7);
-  backdrop-filter: blur(16px);
+  background: rgb(44 44 58 / 0.92);
   font-size: 4.1cqw;
   color: #fff;
   white-space: nowrap;
@@ -186,7 +286,8 @@
   transform: translateY(30%);
   transition:
     opacity 300ms var(--ease-out-quart),
-    transform 500ms var(--ease-out-expo);
+    transform 900ms var(--ease-spring);
+  will-change: transform, opacity;
 }
 .lock-reply[data-open='1'] {
   opacity: 1;

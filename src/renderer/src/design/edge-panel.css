@@ -22,6 +22,25 @@
   z-index: 2;
 }
 
+.edge-panel__light--alt {
+  opacity: 0;
+  will-change: opacity;
+  animation: edge-breathe 22s var(--ease-in-out-sine) infinite;
+}
+@keyframes edge-breathe {
+  50% {
+    opacity: 1;
+  }
+}
+.edge-panel__light--flash {
+  opacity: 0;
+  will-change: opacity;
+}
+.edge-panel__light--flash .edge-panel__bloom {
+  stroke-width: 9;
+  opacity: 1;
+}
+
 .edge-panel__hairline {
   fill: none;
   stroke: rgb(255 255 255 / 0.055);
@@ -49,6 +68,5 @@
 }
 
 .edge-panel--quiet .edge-panel__body {
-  background: linear-gradient(180deg, rgb(18 16 24 / 0.92), rgb(10 9 14 / 0.92));
-  backdrop-filter: blur(14px);
+  background: linear-gradient(180deg, rgb(18 16 24 / 0.97), rgb(10 9 14 / 0.97));
 }

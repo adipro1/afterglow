@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { LyricsDocument, TrackRef } from '@shared/lyrics';
 import { PlaybackClock } from '@/playback/clock';
+import { ticker } from '@/engine/ticker';
 import { DemoPlaybackSource } from '@/playback/demo-source';
 import type { PlaybackSource, PlaybackSourceKind } from '@/playback/types';
 import { demoSongs } from '@/demo/songs';
@@ -75,7 +76,8 @@ class PlaybackRuntime {
     this.attach();
   }
 
-  position(now = performance.now()): number {
+  /** Song position at `now` — by default the current frame's timestamp (see `ticker.now`). */
+  position(now = ticker.now()): number {
     return this.clock.read(now).positionMs;
   }
 }

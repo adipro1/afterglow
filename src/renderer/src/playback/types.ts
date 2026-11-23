@@ -10,6 +10,12 @@ export interface PlaybackSnapshot {
   isPlaying: boolean;
   positionMs: number;
   sampledAt: number;
+  /**
+   * True when the position is known exactly — e.g. it comes straight from a user action
+   * (seek, play, pause, track change) on a source we control. The clock snaps to exact reports
+   * instead of averaging them with earlier, noisier ones.
+   */
+  exact?: boolean;
 }
 
 export type Unsubscribe = () => void;

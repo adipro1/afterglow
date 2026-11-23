@@ -5,6 +5,7 @@ import {
   useState,
   type CSSProperties,
   type ReactNode,
+  type Ref,
 } from 'react';
 import { edgePath, type NotchSpec } from './edge-path';
 import { useReducedMotion } from './useReducedMotion';
@@ -26,6 +27,11 @@ interface EdgePanelProps {
   lightAngle?: number;
   /** Slowly swing the light along the edge. */
   breathe?: boolean;
+  /**
+   * Optional extra, brighter copy of the light (opacity 0 by default) that a scene can pulse —
+   * e.g. when a message arrives. Driving its opacity is compositor-only, so it costs nothing.
+   */
+  flashRef?: Ref<SVGSVGElement>;
   'data-testid'?: string;
 }
 
@@ -43,6 +49,7 @@ export function EdgePanel({
   intensity = 'hero',
   lightAngle = 0,
   breathe = false,
+  flashRef,
   ...rest
 }: EdgePanelProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -65,9 +72,52 @@ export function EdgePanel({
   }, []);
 
   const d = size.w > 0 ? edgePath(size.w, size.h, radius, notch) : '';
-  const cx = size.w / 2;
-  const cy = size.h / 2;
 
+  // Each light layer is a static SVG, rasterised once. "Breathing" cross-fades two layers lit
+  // from slightly different angles (opacity runs on the compositor), instead of re-drawing a
+  // blurred, window-sized SVG every frame.
+  const light = (angle: number, key: string, cls = '', ref?: Ref<SVGSVGElement>) => {
+    const id = `${uid}${key}`;
+    const cx = size.w / 2;
+    const cy = size.h / 2;
+    return (
+      <svg
+        key={key}
+        ref={ref}
+        className={`edge-panel__light ${cls}`}
+        width={size.w}
+        height={size.h}
+        viewBox={`0 0 ${size.w} ${size.h}`}
+        aria-hidden
+      >
+        <defs>
+          <linearGradient
+            id={`g${id}`}
+            gradientUnits="userSpaceOnUse"
+            x1={0}
+            y1={0}
+            x2={size.w}
+            y2={size.h}
+            gradientTransform={`rotate(${angle} ${cx} ${cy})`}
+          >
+            <stop offset="0" stopColor="var(--edge-b)" stopOpacity="0" />
+            <stop offset="0.38" stopColor="var(--edge-b)" stopOpacity="0" />
+            <stop offset="0.6" stopColor="var(--edge-b)" stopOpacity="0.85" />
+            <stop offset="0.8" stopColor="var(--edge-a)" stopOpacity="1" />
+            <stop offset="1" stopColor="var(--edge-a)" stopOpacity="0.9" />
+          </linearGradient>
+          <filter id={`b${id}`} x="-10%" y="-10%" width="120%" height="120%">
+            <feGaussianBlur stdDeviation="7" />
+          </filter>
+        </defs>
+        {!cls && <path d={d} className="edge-panel__hairline" />}
+        <path d={d} className="edge-panel__bloom" stroke={`url(#g${id})`} filter={`url(#b${id})`} />
+        <path d={d} className="edge-panel__line" stroke={`url(#g${id})`} />
+      </svg>
+    );
+  };
+
+  const lit = d && intensity !== 'none';
   return (
     <div
       ref={ref}
@@ -76,58 +126,9 @@ export function EdgePanel({
       data-testid={rest['data-testid']}
     >
       <div className="edge-panel__body">{children}</div>
-      {d && intensity !== 'none' && (
-        <svg
-          className="edge-panel__light"
-          width={size.w}
-          height={size.h}
-          viewBox={`0 0 ${size.w} ${size.h}`}
-          aria-hidden
-        >
-          <defs>
-            <linearGradient
-              id={`g${uid}`}
-              gradientUnits="userSpaceOnUse"
-              x1={0}
-              y1={0}
-              x2={size.w}
-              y2={size.h}
-              gradientTransform={`rotate(${lightAngle} ${cx} ${cy})`}
-            >
-              {breathe && !reducedMotion && (
-                // Light slowly swings along the edge like a camera moving past a lit window.
-                <animateTransform
-                  attributeName="gradientTransform"
-                  type="rotate"
-                  values={`${lightAngle - 14} ${cx} ${cy};${lightAngle + 10} ${cx} ${cy};${lightAngle - 14} ${cx} ${cy}`}
-                  keyTimes="0;0.5;1"
-                  calcMode="spline"
-                  keySplines="0.37 0 0.63 1;0.37 0 0.63 1"
-                  dur="22s"
-                  repeatCount="indefinite"
-                />
-              )}
-              <stop offset="0" stopColor="var(--edge-b)" stopOpacity="0" />
-              <stop offset="0.38" stopColor="var(--edge-b)" stopOpacity="0" />
-              <stop offset="0.6" stopColor="var(--edge-b)" stopOpacity="0.85" />
-              <stop offset="0.8" stopColor="var(--edge-a)" stopOpacity="1" />
-              <stop offset="1" stopColor="var(--edge-a)" stopOpacity="0.9" />
-            </linearGradient>
-            <filter id={`b${uid}`} x="-10%" y="-10%" width="120%" height="120%">
-              <feGaussianBlur stdDeviation="7" />
-            </filter>
-          </defs>
-          {/* faint full outline so the shape still reads where the light doesn't reach */}
-          <path d={d} className="edge-panel__hairline" />
-          <path
-            d={d}
-            className="edge-panel__bloom"
-            stroke={`url(#g${uid})`}
-            filter={`url(#b${uid})`}
-          />
-          <path d={d} className="edge-panel__line" stroke={`url(#g${uid})`} />
-        </svg>
-      )}
+      {lit && light(lightAngle, 'a')}
+      {lit && breathe && !reducedMotion && light(lightAngle + 26, 'b', 'edge-panel__light--alt')}
+      {lit && flashRef && light(lightAngle + 8, 'f', 'edge-panel__light--flash', flashRef)}
     </div>
   );
 }

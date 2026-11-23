@@ -10,15 +10,29 @@ export interface SpringConfig {
   mass?: number;
 }
 
+/**
+ * A spring described the way Apple's SwiftUI does: `response` is roughly how long one
+ * oscillation takes (s), `dampingFraction` 1 = no overshoot, lower = bouncier. Designers think in
+ * these two numbers, so every preset below is written with them.
+ */
+export function appleSpring(response: number, dampingFraction: number): SpringConfig {
+  const w = (2 * Math.PI) / response;
+  return { stiffness: w * w, damping: 2 * dampingFraction * w };
+}
+
 export const springs = {
-  /** Soft landing with a hint of overshoot — message bubbles, cards. */
-  land: { stiffness: 260, damping: 22 },
-  /** Calm, no overshoot — layout shifts, scrolling. */
-  glide: { stiffness: 140, damping: 24 },
-  /** Snappy UI response. */
-  snap: { stiffness: 420, damping: 34 },
+  /** Things that arrive — message bubbles, cards: quick, with a whisper of overshoot. */
+  land: appleSpring(0.46, 0.8),
+  /** Layout moving to make room — no overshoot, unhurried. */
+  glide: appleSpring(0.56, 1),
+  /** Small UI responses. */
+  snap: appleSpring(0.3, 0.92),
+  /** Playful pops — reactions, badges. */
+  pop: appleSpring(0.38, 0.58),
+  /** Long, soft settles — lighting, depth. */
+  settle: appleSpring(0.9, 1),
   /** Slow and heavy — camera moves. */
-  camera: { stiffness: 40, damping: 14 },
+  camera: appleSpring(1.6, 0.9),
 } satisfies Record<string, SpringConfig>;
 
 /** Spring position at `ms` after release. 0 before release; settles at 1. */

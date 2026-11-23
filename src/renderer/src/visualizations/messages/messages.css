@@ -70,15 +70,80 @@
   border-bottom-right-radius: 0.5em;
 }
 
-/* Words light up as they're sung (incoming); outgoing text was already typed. */
+/* Words light up as they're sung (incoming); outgoing text was already typed.
+   Opacity only — a per-word blur filter would cost a GPU pass per word. */
 .bw {
-  transition:
-    opacity 260ms var(--ease-out-quart),
-    filter 260ms var(--ease-out-quart);
+  transition: opacity 320ms var(--ease-out-quart);
 }
 .bw[data-sung='0'] {
-  opacity: 0.24;
-  filter: blur(0.6px);
+  opacity: 0.3;
+}
+
+/* Tapback: a small badge perched on the bubble's top corner, with the two "thought" dots. */
+.tapback {
+  position: absolute;
+  top: -1.35em;
+  right: -1.35em;
+  width: 1.9em;
+  height: 1.9em;
+  opacity: 0;
+  transform: scale(0.2);
+  transform-origin: 30% 90%;
+  will-change: transform, opacity;
+  z-index: 2;
+}
+.bubble--out .tapback {
+  right: auto;
+  left: -1.35em;
+  transform-origin: 70% 90%;
+}
+.tapback__face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--tint-2) 85%, white);
+  box-shadow:
+    0 0 0 2px var(--ink-1),
+    0 6px 16px -4px rgb(0 0 0 / 0.6);
+  color: white;
+}
+.tapback__face svg {
+  width: 58%;
+  height: 58%;
+  fill: currentColor;
+}
+.tapback__face b {
+  font-size: 0.72em;
+  font-weight: 800;
+  letter-spacing: -0.06em;
+}
+.tapback__dot {
+  position: absolute;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--tint-2) 85%, white);
+  box-shadow: 0 0 0 2px var(--ink-1);
+}
+.tapback__dot--lg {
+  width: 0.5em;
+  height: 0.5em;
+  left: 0.05em;
+  bottom: -0.05em;
+}
+.tapback__dot--sm {
+  width: 0.24em;
+  height: 0.24em;
+  left: -0.18em;
+  bottom: -0.32em;
+}
+.bubble--out .tapback__dot--lg {
+  left: auto;
+  right: 0.05em;
+}
+.bubble--out .tapback__dot--sm {
+  left: auto;
+  right: -0.18em;
 }
 
 .bubble--typing {
@@ -94,6 +159,25 @@
   border-radius: 50%;
   background: color-mix(in oklab, var(--bubble-in-text), transparent 20%);
   opacity: 0.4;
+  will-change: transform, opacity;
+}
+/* The typing bubble's tail is two little "thought" circles, as on the real thing. */
+.typing-tail i {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--bubble-in);
+}
+.typing-tail i:first-child {
+  width: 0.5em;
+  height: 0.5em;
+  left: -0.12em;
+  bottom: -0.12em;
+}
+.typing-tail i:last-child {
+  width: 0.24em;
+  height: 0.24em;
+  left: -0.42em;
+  bottom: -0.4em;
 }
 
 /* ═════════════ Thread ═════════════ */
@@ -106,6 +190,9 @@
   width: min(980px, 74cqw, 132cqh);
   z-index: 2;
   transform-origin: 50% 50%;
+}
+.msg-thread__kick {
+  will-change: transform;
 }
 .msg-thread__window {
   width: 100%;
@@ -197,18 +284,66 @@
 .thread-body {
   position: relative;
   overflow: hidden;
-  margin: 0 auto;
+  margin: 0 auto -64px;
   width: min(640px, 82%);
-  /* Older messages dissolve into the dark as they scroll away. */
-  mask-image: linear-gradient(180deg, transparent 0, transparent 4%, black 34%, black 100%);
+  /* Extends down behind the compose bar so a sent bubble can rise out of the field. */
+}
+/* Older messages dissolve into the dark as they scroll away. A gradient overlay in the
+   window's own colour does this for free; a CSS mask would cost a GPU pass every frame. */
+.thread-fade {
+  position: absolute;
+  left: -4%;
+  right: -4%;
+  top: 0;
+  height: 36%;
+  pointer-events: none;
+  z-index: 3;
+  background: linear-gradient(
+    180deg,
+    var(--ink-1) 0%,
+    color-mix(in oklab, var(--ink-1), transparent 12%) 18%,
+    color-mix(in oklab, var(--ink-1), transparent 60%) 58%,
+    transparent 100%
+  );
 }
 .thread-item {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 14px;
+  bottom: 78px;
   display: flex;
   will-change: transform, opacity;
+}
+.thread-item--intro {
+  justify-content: center;
+}
+.thread-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.thread-intro__avatar {
+  margin-bottom: 6px;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.08),
+    0 18px 40px -12px color-mix(in oklab, var(--tint-2), transparent 40%);
+}
+.thread-intro__avatar .artwork {
+  border-radius: 50%;
+}
+.thread-intro__name {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--text-hi);
+}
+.thread-intro__meta {
+  font-size: 11.5px;
+  color: var(--text-lo);
 }
 .thread-item.side-in {
   justify-content: flex-start;
@@ -241,23 +376,34 @@
   text-align: right;
   padding-right: 4px;
 }
-.thread-receipt span {
+.thread-receipt > span {
   position: absolute;
   right: 4px;
-  transition: opacity 500ms var(--ease-out-quart);
+  white-space: nowrap;
+  transition:
+    opacity 420ms var(--ease-out-quart),
+    transform 600ms var(--ease-spring-soft);
 }
 .thread-receipt__read {
   opacity: 0;
+  transform: translateY(4px);
+}
+.thread-receipt__read b {
+  font-weight: 600;
   color: var(--text-mid);
 }
 .thread-receipt[data-read='true'] .thread-receipt__delivered {
   opacity: 0;
+  transform: translateY(-4px);
 }
 .thread-receipt[data-read='true'] .thread-receipt__read {
   opacity: 1;
+  transform: none;
 }
 
 .compose {
+  position: relative;
+  z-index: 4;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -297,7 +443,9 @@
   opacity: 0;
 }
 .compose__text {
+  display: inline-block;
   color: var(--text-hi);
+  white-space: pre;
 }
 .compose__caret {
   width: 1.5px;

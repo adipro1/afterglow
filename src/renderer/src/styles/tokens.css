@@ -42,6 +42,71 @@
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
   --ease-in-out-sine: cubic-bezier(0.37, 0, 0.63, 1);
   --ease-in-quad: cubic-bezier(0.11, 0, 0.5, 0);
+  /* Spring curves sampled from appleSpring() (animation/spring.ts) for CSS transitions. */
+  /* response 0.55 s, damping 0.86 — use with ~1100 ms durations */
+  --ease-spring: linear(
+    0,
+    0.0779,
+    0.2411,
+    0.4213,
+    0.5845,
+    0.7172,
+    0.8176,
+    0.8892,
+    0.9375,
+    0.9685,
+    0.9872,
+    0.9976,
+    1.0027,
+    1.0047,
+    1.005,
+    1.0044,
+    1.0036,
+    1.0027,
+    1.0019,
+    1.0013,
+    1.0008,
+    1.0005,
+    1.0003,
+    1.0001,
+    1,
+    1,
+    1,
+    1,
+    1
+  );
+  /* response 0.5 s, critically damped — use with ~900 ms durations */
+  --ease-spring-soft: linear(
+    0,
+    0.0626,
+    0.194,
+    0.3416,
+    0.4801,
+    0.5993,
+    0.6966,
+    0.7736,
+    0.8328,
+    0.8777,
+    0.9113,
+    0.936,
+    0.9541,
+    0.9672,
+    0.9767,
+    0.9835,
+    0.9884,
+    0.9918,
+    0.9942,
+    0.996,
+    0.9972,
+    0.998,
+    0.9986,
+    0.999,
+    0.9993,
+    0.9995,
+    0.9997,
+    0.9998,
+    1
+  );
   --dur-fast: 180ms;
   --dur-med: 420ms;
   --dur-slow: 900ms;

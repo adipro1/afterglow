@@ -9,7 +9,8 @@ export interface AfterglowTestHooks {
   pause(): void;
   selectTrack(index: number): void;
   selectScene(sceneId: string, variation?: string): void;
-  position(): number;
+  /** Song position, optionally at a given performance.now() timestamp. */
+  position(at?: number): number;
   resetPerf(): void;
   perf(): { fps: number; p95FrameMs: number; avgScriptMs: number; frames: number };
 }

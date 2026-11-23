@@ -112,3 +112,16 @@ describe('time queries', () => {
     expect(clockLabel(0, 7)).toMatch(/^\d{1,2}:\d{2} (AM|PM)$/);
   });
 });
+
+describe('reactions', () => {
+  it('only lands tapbacks on incoming lines, after they are sung, with room to be seen', () => {
+    const reacted = plan.messages.filter((m) => m.reaction);
+    expect(reacted.length).toBeGreaterThan(0);
+    for (const m of reacted) {
+      expect(m.side).toBe('in');
+      expect(m.reaction!.at).toBeGreaterThan(m.endMs);
+      const next = plan.messages[m.index + 1];
+      if (next) expect(next.appearAt).toBeGreaterThan(m.reaction!.at);
+    }
+  });
+});

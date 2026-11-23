@@ -128,12 +128,13 @@ export class DemoPlaybackSource implements ControllablePlaybackSource {
   }
 
   private snapshot(noisy: boolean): PlaybackSnapshot {
-    const error = noisy && this.jitter ? (this.random() * 2 - 1) * this.jitter : 0;
+    const error = noisy && this.playing && this.jitter ? (this.random() * 2 - 1) * this.jitter : 0;
     return {
       track: this.track,
       isPlaying: this.playing,
       positionMs: Math.max(0, this.truePosition() + error),
       sampledAt: this.now(),
+      exact: !noisy,
     };
   }
 

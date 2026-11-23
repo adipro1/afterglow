@@ -48,7 +48,9 @@ export function createMainWindow(settings: SettingsStore): BrowserWindow {
       sandbox: true,
       nodeIntegration: false,
       spellcheck: false,
-      backgroundThrottling: true,
+      // A visualiser often plays unfocused — on a second screen or behind other work — and must
+      // stay perfectly smooth there. (Chromium still stops drawing when minimised or hidden.)
+      backgroundThrottling: false,
     },
   });
 
