@@ -33,7 +33,11 @@ export interface PlannedMessage {
   separator: string | null;
   /** Outgoing only: when the other side "reads" it (receipt flips Delivered → Read). */
   readAt: number | null;
+  /** A tapback "you" leave on an incoming line once it has been sung, if any. */
+  reaction: { kind: Reaction; at: number } | null;
 }
+
+export type Reaction = 'heart' | 'emphasis';
 
 export interface ConversationPlan {
   messages: PlannedMessage[];
@@ -51,6 +55,9 @@ export const PLAN = {
   minTypingMs: 500,
   /** Outgoing messages are sent this long after their last word starts. */
   sendAfterLastWordMs: 320,
+  /** Share of verse-closing incoming lines that get a tapback, and how long after the line. */
+  reactionChance: 0.7,
+  reactionDelayMs: 450,
 } as const;
 
 const norm = (s: string) =>
@@ -147,6 +154,7 @@ export function planConversation(doc: Pick<LyricsDocument, 'lines'>, seed = 0): 
       composeFrom: side === 'out' ? line.startMs : null,
       separator: null,
       readAt: null,
+      reaction: null,
     };
   });
 
@@ -177,6 +185,17 @@ export function planConversation(doc: Pick<LyricsDocument, 'lines'>, seed = 0): 
     if (m.side !== 'out') return;
     const reply = messages.slice(i + 1).find((n) => n.side === 'in');
     if (reply) m.readAt = Math.max(m.appearAt + 400, (reply.typingFrom ?? reply.appearAt) - 200);
+  });
+
+  // 6) Tapbacks: now and then "you" react to the line that closes one of their verses —
+  //    a beat after it has been sung, while it still hangs there.
+  messages.forEach((m, i) => {
+    if (m.side !== 'in' || !m.lastInGroup || m.firstInGroup) return;
+    if (hash01(i, seed + 5) > PLAN.reactionChance) return;
+    const at = m.endMs + PLAN.reactionDelayMs;
+    const next = messages[i + 1];
+    if (next && next.appearAt < at + 900) return; // no room: the thread has moved on
+    m.reaction = { kind: hash01(i, seed + 6) < 0.25 ? 'emphasis' : 'heart', at };
   });
 
   return { messages, contactSeed: seed };

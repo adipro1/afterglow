@@ -9,17 +9,21 @@
   "license": "UNLICENSED",
   "scripts": {
     "dev": "electron-vite dev",
+    "start": "electron-vite preview",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.e2e.json",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "safety": "node scripts/public-safety.mjs",
+    "safety:history": "node scripts/public-safety.mjs --history",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "electron-vite build && playwright test",
-    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test",
-    "dist": "electron-vite build && electron-builder --win"
+    "check": "npm run safety && npm run typecheck && npm run lint && npm run format:check && npm run test",
+    "dist": "electron-vite build && electron-builder --win",
+    "prepare": "node scripts/public-safety.mjs --install-hooks"
   },
   "dependencies": {
     "@fontsource-variable/inter": "5.3.0",

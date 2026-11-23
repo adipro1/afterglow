@@ -23,6 +23,18 @@ class Ticker {
   private work = new Float32Array(240);
   private cursor = 0;
   private filled = 0;
+  private frameNow = 0;
+  private inFrame = false;
+
+  /**
+   * The timestamp of the frame being drawn. Everything animated in one frame must sample time at
+   * this same instant — reading performance.now() mid-frame would add up to a few ms of random
+   * error per element per frame, which the eye reads as micro-stutter.
+   * Outside a frame (event handlers) it falls back to the real clock.
+   */
+  now(): number {
+    return this.inFrame ? this.frameNow : performance.now();
+  }
 
   add(fn: Subscriber): () => void {
     this.subs.add(fn);
@@ -35,13 +47,17 @@ class Ticker {
 
   private start() {
     this.last = performance.now();
+    this.frameNow = this.last;
     let prev = this.last;
     const loop = (now: number) => {
       const dt = Math.min(64, now - this.last);
       this.last = now;
       const info = { now, dt };
       const t0 = performance.now();
+      this.frameNow = now;
+      this.inFrame = true;
       for (const s of this.subs) s(info);
+      this.inFrame = false;
       this.intervals[this.cursor] = now - prev;
       this.work[this.cursor] = performance.now() - t0;
       this.cursor = (this.cursor + 1) % this.intervals.length;

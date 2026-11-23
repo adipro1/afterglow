@@ -85,10 +85,11 @@
   perspective: 2200px;
   perspective-origin: 50% 40%;
   container-type: size;
+  /* Transform + opacity only: both run on the compositor, so switches never drop frames. */
   transition:
-    opacity 900ms var(--ease-out-quart),
-    transform 1100ms var(--ease-out-expo),
-    filter 900ms var(--ease-out-quart);
+    opacity 700ms var(--ease-out-quart),
+    transform 1100ms var(--ease-spring);
+  will-change: transform, opacity;
 }
 .scene-layer > * {
   position: absolute;
@@ -97,14 +98,16 @@
 /* Outgoing scene sinks back into the dark; the incoming one surfaces from just in front. */
 .scene-layer[data-phase='exit'] {
   opacity: 0;
-  transform: scale(0.965) translateY(1.5%);
-  filter: blur(6px);
+  transform: scale(0.94) translateY(1.5%);
   pointer-events: none;
+  transition:
+    opacity 450ms var(--ease-out-quart),
+    transform 900ms var(--ease-out-expo);
 }
 .scene-layer[data-phase='enter'] {
   opacity: 0;
-  transform: scale(1.03);
-  filter: blur(4px);
+  transform: scale(1.045);
+  transition: none;
 }
 .stage__label {
   position: absolute;
@@ -135,7 +138,6 @@
     rgb(123 60 255 / 0.04) 45%,
     transparent 72%
   );
-  filter: blur(10px);
   pointer-events: none;
 }
 

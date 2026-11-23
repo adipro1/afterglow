@@ -49,3 +49,20 @@ export function hash01(n: number, seed = 0): number {
   h ^= h >>> 15;
   return (h >>> 0) / 4294967296;
 }
+
+/**
+ * A soft impulse: rises from 0, peaks at 1 when `age === peakMs`, then decays smoothly to 0.
+ * For one-off nudges — a window reacting to a send, a light flaring on arrival.
+ */
+export function bump(age: number, peakMs: number): number {
+  if (age <= 0) return 0;
+  const x = age / peakMs;
+  const v = x * Math.exp(1 - x);
+  return v < 1e-3 && x > 1 ? 0 : v;
+}
+
+/** Smooth Hermite step from 0 (at `a`) to 1 (at `b`). */
+export function smoothstep(a: number, b: number, x: number): number {
+  const t = clamp((x - a) / (b - a));
+  return t * t * (3 - 2 * t);
+}

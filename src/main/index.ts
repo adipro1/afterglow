@@ -7,6 +7,11 @@ import { createMainWindow, getWindowState } from './window';
 const userDataOverride = process.env['AFTERGLOW_USER_DATA'];
 if (userDataOverride) app.setPath('userData', userDataOverride);
 
+// Never let Windows/Chromium demote the renderer to a low-priority "background" process when
+// the window loses focus — the visualisation keeps playing and must stay smooth.
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {

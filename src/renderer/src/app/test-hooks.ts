@@ -30,7 +30,7 @@ export function installTestHooks(): void {
       if (s instanceof DemoPlaybackSource) s.select(index);
     },
     selectScene: (id, v) => useScene.getState().select(id, v),
-    position: () => runtime.position(),
+    position: (at) => runtime.position(at),
     resetPerf: () => ticker.resetStats(),
     perf: () => ticker.stats(),
   };

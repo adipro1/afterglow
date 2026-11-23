@@ -34,3 +34,6 @@ user-data/
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# personal words the public-safety scan looks for (kept local so the list isn't published)
+.public-safety.local

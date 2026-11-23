@@ -10,10 +10,14 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history, so the safety scan sees every past version
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
+      - name: Public-safety scan (whole history)
+        run: node scripts/public-safety.mjs --history
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint

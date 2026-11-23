@@ -1,21 +1,26 @@
-import { useMemo, useRef } from 'react';
+import { useLayoutEffect, useMemo, useRef } from 'react';
 import { EdgePanel } from '@/design/EdgePanel';
 import { FloatingRig } from '@/design/FloatingRig';
 import { Artwork } from '@/design/Artwork';
 import { Icon } from '@/design/Icon';
 import { useTicker } from '@/engine/ticker';
-import { clamp, envelope } from '@/animation/easing';
+import { bump, clamp, mix, smoothstep } from '@/animation/easing';
 import { spring, springs } from '@/animation/spring';
 import type { SceneProps } from '../types';
-import { Bubble, TypingBubble, applySungWords, applyTypingDots } from './Bubble';
-import { composeAt, type ConversationPlan, type PlannedMessage } from './plan';
+import { Bubble, TypingBubble, applyReaction, applySungWords, applyTypingDots } from './Bubble';
+import { clockLabel, composeAt, type ConversationPlan, type PlannedMessage } from './plan';
 import type { ConversationStructure } from './useConversation';
-import { useHeights } from './useHeights';
+import { useSizes } from './useSizes';
 
 /** How many landed messages stay mounted (older ones have scrolled out of view). */
 const KEEP = 9;
+/** Distance (px) from a new bubble's resting place down to the compose field it rises from. */
+const RISE_PX = 52;
+/** Typing indicator size, until measured. */
+const TYPING_FALLBACK = { w: 62, h: 38 };
 
 type Item =
+  | { kind: 'intro'; key: string }
   | { kind: 'sep'; key: string; m: PlannedMessage; label: string }
   | { kind: 'msg'; key: string; m: PlannedMessage }
   | { kind: 'receipt'; key: string; m: PlannedMessage; hideAt: number }
@@ -25,9 +30,12 @@ function buildItems(plan: ConversationPlan, s: ConversationStructure): Item[] {
   const items: Item[] = [];
   const msgs = plan.messages;
   const from = Math.max(0, s.landed - KEEP + 1);
+  // The conversation opens with the contact's card, until it has scrolled far away.
+  if (from === 0) items.push({ kind: 'intro', key: 'intro' });
   for (let i = from; i <= s.landed; i++) {
     const m = msgs[i]!;
-    if (m.separator) items.push({ kind: 'sep', key: `sep:${m.id}`, m, label: m.separator });
+    if (m.separator && i > 0)
+      items.push({ kind: 'sep', key: `sep:${m.id}`, m, label: m.separator });
     items.push({ kind: 'msg', key: m.id, m });
     if (m.side === 'out') {
       const nextOut = msgs.slice(i + 1).find((n) => n.side === 'out');
@@ -35,7 +43,7 @@ function buildItems(plan: ConversationPlan, s: ConversationStructure): Item[] {
     }
   }
   // The typing indicator for the next incoming message, or the one that just landed
-  // (kept briefly so it can collapse smoothly as the real bubble grows in its place).
+  // (kept briefly so it can hand over smoothly to the real bubble growing in its place).
   const next = msgs[s.landed + 1];
   const just = msgs[s.landed];
   const typingFor =
@@ -54,16 +62,18 @@ function buildItems(plan: ConversationPlan, s: ConversationStructure): Item[] {
 /** Layout weight (0..1) of an item at time t — how much vertical space it currently claims. */
 function presence(it: Item, t: number): number {
   switch (it.kind) {
+    case 'intro':
+      return 1;
     case 'sep':
     case 'msg':
       return spring(t - it.m.appearAt, springs.glide);
     case 'receipt':
       return (
-        spring(t - it.m.appearAt - 260, springs.glide) * (1 - spring(t - it.hideAt, springs.glide))
+        spring(t - it.m.appearAt - 240, springs.glide) * (1 - spring(t - it.hideAt, springs.glide))
       );
     case 'typing':
       return (
-        spring(t - (it.m.typingFrom ?? 0), springs.glide) *
+        spring(t - (it.m.typingFrom ?? 0), springs.snap) *
         (1 - spring(t - it.m.appearAt, springs.snap))
       );
   }
@@ -71,6 +81,7 @@ function presence(it: Item, t: number): number {
 
 function gapAfter(it: Item, next: Item | undefined): number {
   if (!next) return 0;
+  if (it.kind === 'intro') return 28;
   if (it.kind === 'sep') return 14;
   if (next.kind === 'receipt') return 5;
   if (next.kind === 'sep') return 22;
@@ -83,97 +94,143 @@ export function Thread({
   getTime,
   plan,
   structure,
+  seed,
 }: SceneProps & { plan: ConversationPlan; structure: ConversationStructure }) {
   const items = useMemo(() => buildItems(plan, structure), [plan, structure]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const composeRef = useRef<HTMLDivElement>(null);
   const composeTextRef = useRef<HTMLSpanElement>(null);
+  const caretRef = useRef<HTMLSpanElement>(null);
   const sendRef = useRef<HTMLDivElement>(null);
   const statusRef = useRef<HTMLDivElement>(null);
+  const flashRef = useRef<SVGSVGElement>(null);
+  const kickRef = useRef<HTMLDivElement>(null);
+  const bodyH = useRef(0);
+  const typingSize = useRef(TYPING_FALLBACK);
   const lastTyped = useRef('');
 
-  // Natural heights of every item, tracked as they re-wrap or the window resizes.
-  const heights = useHeights(scrollRef, 'item', [items]);
+  // Natural sizes of every item, tracked as they re-wrap or the window resizes.
+  const { sizes, els } = useSizes(scrollRef, 'item', [items]);
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => (bodyH.current = el.clientHeight));
+    ro.observe(el);
+    bodyH.current = el.clientHeight;
+    return () => ro.disconnect();
+  }, []);
 
   useTicker(() => {
-    const root = scrollRef.current;
-    if (!root) return;
     const t = getTime();
-    const els = new Map<string, HTMLElement>();
-    root
-      .querySelectorAll<HTMLElement>('[data-item]')
-      .forEach((el) => els.set(el.dataset['item']!, el));
 
-    // Stack from the bottom: each item sits above everything newer, weighted by presence.
-    // Gaps are measured to the nearest item that is actually present, so collapsed
-    // placeholders (a finished typing indicator, an old receipt) leave no hole.
+    // ── The stack, from the bottom up. Each item sits above everything newer, weighted by how
+    //    present it is, so arrivals push older messages up smoothly. Gaps are measured to the
+    //    nearest item that is actually present, so collapsed placeholders leave no hole.
     let y = 0;
     let below: Item | undefined;
     for (let i = items.length - 1; i >= 0; i--) {
       const it = items[i]!;
-      const el = els.get(it.key);
+      const el = els.current.get(it.key);
       const p = presence(it, t);
-      const h = heights.current.get(it.key) ?? 0;
-      // The gap between this item and the one below it opens as this item arrives.
+      const size = sizes.current.get(it.key);
+      const h = size?.h ?? 0;
       if (below) y += gapAfter(it, below) * p;
+      if (it.kind === 'typing' && size && size.w > 0) typingSize.current = size;
+
       if (el) {
         let extraY = 0;
-        let scale = 1;
+        let sx = 1;
+        let sy = 1;
         let opacity = clamp(p * 1.6);
         if (it.kind === 'msg') {
-          const age = t - it.m.appearAt;
+          const m = it.m;
+          const age = t - m.appearAt;
           const s = spring(age, springs.land);
-          scale = 0.84 + 0.16 * s;
-          opacity = clamp(age / 140);
-          // Sent messages rise out of the compose field; received ones drop in from their tail.
-          extraY = (1 - s) * (it.m.side === 'out' ? 34 : 8);
-          applySungWords(el, it.m, t);
+          if (m.side === 'out') {
+            // Sent: the bubble — text and all — lifts out of the compose field into place.
+            extraY = (1 - s) * RISE_PX;
+            sx = sy = mix(0.92, 1, s);
+            opacity = clamp(age / 60);
+          } else if (m.typingFrom !== null && size && size.w > 0) {
+            // Received after typing: the typing bubble grows into the message. The real bubble
+            // is revealed through a rounded window that expands from the typing bubble's size,
+            // so its corners stay perfectly round throughout (a stretch would flatten them).
+            morph(el, age, s, size, typingSize.current);
+            opacity = 1;
+          } else {
+            sx = sy = mix(0.86, 1, s);
+            extraY = (1 - s) * 10;
+            opacity = clamp(age / 120);
+          }
+          applySungWords(el, m, t);
+          applyReaction(el, m, t);
         } else if (it.kind === 'typing') {
-          scale = 0.7 + 0.3 * p;
-          // Vanish almost instantly once the real message lands in the same spot.
-          opacity = clamp(p * 1.3) * (1 - clamp((t - it.m.appearAt) / 70));
+          const s = spring(t - (it.m.typingFrom ?? 0), springs.pop);
+          sx = sy = mix(0.5, 1, s);
+          // Gone the instant the real message takes its place.
+          opacity = clamp((t - (it.m.typingFrom ?? 0)) / 120) * (t >= it.m.appearAt ? 0 : 1);
           applyTypingDots(el, t);
+        } else if (it.kind === 'intro') {
+          // Rest in the middle of the empty thread; get pushed up once messages fill it.
+          const centre = Math.max(0, (bodyH.current - h) / 2 - 18);
+          extraY = -Math.max(0, centre - y);
+          opacity = 1;
         }
-        el.style.transform = `translate3d(0, ${(-y + extraY).toFixed(2)}px, 0) scale(${scale.toFixed(4)})`;
+        const tf = `translate3d(0, ${(-y + extraY).toFixed(2)}px, 0) scale(${sx.toFixed(4)}, ${sy.toFixed(4)})`;
+        el.style.transform = tf;
         el.style.opacity = opacity.toFixed(3);
-        el.style.visibility = opacity <= 0.001 ? 'hidden' : 'visible';
+        const vis = opacity <= 0.001 ? 'hidden' : 'visible';
+        if (el.style.visibility !== vis) el.style.visibility = vis;
       }
       y += h * p;
       if (p > 0.02) below = it;
     }
 
-    // Compose field: the outgoing line is typed in as it's sung.
+    // ── Compose field: the outgoing line is typed as it's sung; on send the text leaves
+    //    inside the bubble, so the field simply clears.
     const c = composeAt(plan, t);
-    const typed = c?.typed ?? '';
-    if (typed !== lastTyped.current && composeTextRef.current) {
-      lastTyped.current = typed;
-      composeTextRef.current.textContent = typed;
-    }
+    const text = c?.typed ?? '';
+    const ct = composeTextRef.current;
+    if (ct && text !== lastTyped.current) ct.textContent = lastTyped.current = text;
     const field = composeRef.current;
     if (field) {
-      field.dataset['state'] = typed ? 'typing' : 'empty';
-      const caret = field.querySelector<HTMLElement>('.compose__caret');
-      if (caret) {
-        const active = c && c.wordProgress < 0.6;
-        caret.style.opacity = active ? '1' : Math.floor(t / 530) % 2 ? '0' : '1';
-      }
+      const state = c ? 'typing' : 'empty';
+      if (field.dataset['state'] !== state) field.dataset['state'] = state;
     }
-    // The send button pulses at the moment of sending.
+    if (caretRef.current) {
+      const solid = c && c.wordProgress < 0.6;
+      const on = solid || Math.floor(t / 530) % 2 === 0;
+      caretRef.current.style.opacity = on ? '1' : '0';
+    }
+
+    // ── Send button pulses at the moment of sending; the window answers with a tiny nudge,
+    //    and the edge light flares whenever anything arrives.
+    const last = plan.messages[structure.landed];
+    const lastAge = last ? t - last.appearAt : Infinity;
     if (sendRef.current) {
-      const sent = plan.messages.find(
-        (m) => m.side === 'out' && t >= m.appearAt && t < m.appearAt + 420,
-      );
-      const k = sent ? envelope((t - sent.appearAt) / 420, 0.35) : 0;
-      sendRef.current.style.transform = `scale(${(1 + 0.14 * k).toFixed(3)})`;
-      sendRef.current.dataset['active'] = typed || sent ? '1' : '0';
+      const k = last?.side === 'out' ? bump(lastAge, 110) : 0;
+      sendRef.current.style.transform = `scale(${(1 + 0.16 * k).toFixed(3)})`;
+      const active = c || (last?.side === 'out' && lastAge < 300) ? '1' : '0';
+      if (sendRef.current.dataset['active'] !== active) sendRef.current.dataset['active'] = active;
+    }
+    if (kickRef.current) {
+      const k = bump(lastAge, 160) * (last?.side === 'out' ? 1 : 0.5);
+      kickRef.current.style.transform = `translate3d(0, ${(-2.2 * k).toFixed(2)}px, 0) scale(${(1 + 0.0035 * k).toFixed(4)})`;
+    }
+    if (flashRef.current) {
+      const k = last ? clamp(lastAge / 90) * Math.exp(-Math.max(0, lastAge - 90) / 650) : 0;
+      flashRef.current.style.opacity = (0.65 * k).toFixed(3);
     }
     if (statusRef.current) {
-      const typing = structure.typingId !== null;
-      statusRef.current.dataset['typing'] = typing ? '1' : '0';
+      const typing = structure.typingId !== null ? '1' : '0';
+      if (statusRef.current.dataset['typing'] !== typing)
+        statusRef.current.dataset['typing'] = typing;
     }
   });
 
   const contact = track?.artists[0] ?? 'Unknown';
+  const opened = plan.messages[0]?.separator ?? `Today ${clockLabel(0, seed)}`;
 
   return (
     <div className="msg-thread">
@@ -191,69 +248,108 @@ export function Thread({
       </FloatingRig>
 
       <FloatingRig className="msg-thread__rig" drift={{ rotY: 5, rotX: 1.6, ampY: 1.4 }}>
-        <EdgePanel
-          className="msg-thread__window"
-          radius={18}
-          notch={{ width: 120, depth: 8, at: 0.5 }}
-          breathe
-          lightAngle={-8}
-          data-testid="messages-thread"
-        >
-          <header className="thread-head">
-            <div className="thread-head__who">
-              <div className="thread-head__avatar">
-                <Artwork track={track} size={34} />
-              </div>
-              <div>
-                <div className="thread-head__name">{contact}</div>
-                <div className="thread-head__status" ref={statusRef} data-typing="0">
-                  <span className="thread-head__sub">{track?.album ?? track?.title ?? ''}</span>
-                  <span className="thread-head__typing">typing…</span>
+        <div className="msg-thread__kick" ref={kickRef}>
+          <EdgePanel
+            className="msg-thread__window"
+            radius={18}
+            notch={{ width: 120, depth: 8, at: 0.5 }}
+            breathe
+            flashRef={flashRef}
+            lightAngle={-8}
+            data-testid="messages-thread"
+          >
+            <header className="thread-head">
+              <div className="thread-head__who">
+                <div className="thread-head__avatar">
+                  <Artwork track={track} size={34} />
+                </div>
+                <div>
+                  <div className="thread-head__name">{contact}</div>
+                  <div className="thread-head__status" ref={statusRef} data-typing="0">
+                    <span className="thread-head__sub">{track?.album ?? track?.title ?? ''}</span>
+                    <span className="thread-head__typing">typing…</span>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="thread-head__actions" aria-hidden>
-              <Icon name="phone" />
-              <Icon name="video" />
-              <Icon name="info" />
-            </div>
-          </header>
-
-          <div className="thread-body" ref={scrollRef}>
-            {items.map((it) => (
-              <div
-                key={it.key}
-                className={`thread-item thread-item--${it.kind} ${
-                  it.kind !== 'sep' ? `side-${it.m.side}` : ''
-                }`}
-                data-item={it.key}
-                style={{ visibility: 'hidden' }}
-              >
-                {it.kind === 'sep' && <Separator label={it.label} />}
-                {it.kind === 'msg' && <Bubble m={it.m} />}
-                {it.kind === 'typing' && <TypingBubble />}
-                {it.kind === 'receipt' && <Receipt m={it.m} getTime={getTime} />}
+              <div className="thread-head__actions" aria-hidden>
+                <Icon name="phone" />
+                <Icon name="video" />
+                <Icon name="info" />
               </div>
-            ))}
-          </div>
+            </header>
 
-          <footer className="compose">
-            <div className="compose__plus" aria-hidden>
-              <Icon name="plus" />
+            <div className="thread-body" ref={scrollRef}>
+              {items.map((it) => (
+                <div
+                  key={it.key}
+                  className={`thread-item thread-item--${it.kind} ${
+                    it.kind === 'msg' || it.kind === 'typing' || it.kind === 'receipt'
+                      ? `side-${it.m.side}`
+                      : ''
+                  }`}
+                  data-item={it.key}
+                  style={{ visibility: 'hidden' }}
+                >
+                  {it.kind === 'intro' && (
+                    <div className="thread-intro">
+                      <div className="thread-intro__avatar">
+                        <Artwork track={track} size={64} />
+                      </div>
+                      <div className="thread-intro__name">{contact}</div>
+                      <div className="thread-intro__meta">iMessage · {opened}</div>
+                    </div>
+                  )}
+                  {it.kind === 'sep' && <Separator label={it.label} />}
+                  {it.kind === 'msg' && <Bubble m={it.m} />}
+                  {it.kind === 'typing' && <TypingBubble />}
+                  {it.kind === 'receipt' && <Receipt m={it.m} getTime={getTime} seed={seed} />}
+                </div>
+              ))}
+              <div className="thread-fade" aria-hidden />
             </div>
-            <div className="compose__field" ref={composeRef} data-state="empty">
-              <span className="compose__placeholder">Message</span>
-              <span className="compose__text" ref={composeTextRef} />
-              <span className="compose__caret" />
-            </div>
-            <div className="compose__send" ref={sendRef} data-active="0" aria-hidden>
-              <Icon name="arrowUp" size={14} />
-            </div>
-          </footer>
-        </EdgePanel>
+
+            <footer className="compose">
+              <div className="compose__plus" aria-hidden>
+                <Icon name="plus" />
+              </div>
+              <div className="compose__field" ref={composeRef} data-state="empty">
+                <span className="compose__placeholder">iMessage</span>
+                <span className="compose__text" ref={composeTextRef} />
+                <span className="compose__caret" ref={caretRef} />
+              </div>
+              <div className="compose__send" ref={sendRef} data-active="0" aria-hidden>
+                <Icon name="arrowUp" size={14} />
+              </div>
+            </footer>
+          </EdgePanel>
+        </div>
       </FloatingRig>
     </div>
   );
+}
+
+/** Reveal an incoming bubble through a rounded window growing out of the typing bubble. */
+function morph(
+  el: HTMLElement,
+  age: number,
+  s: number,
+  size: { w: number; h: number },
+  from: { w: number; h: number },
+) {
+  const bubble = el.firstElementChild as HTMLElement | null;
+  if (!bubble) return;
+  const text = bubble.firstElementChild as HTMLElement | null;
+  if (age > 900) {
+    if (bubble.style.clipPath) bubble.style.clipPath = '';
+    if (text && text.style.opacity !== '') text.style.opacity = '';
+    return;
+  }
+  const w = mix(Math.min(size.w, from.w), size.w, s);
+  const h = mix(Math.min(size.h, from.h), size.h, s);
+  const r = Math.min(h / 2, 19);
+  // Anchored bottom-left like the typing bubble; a negative left inset keeps the tail visible.
+  bubble.style.clipPath = `inset(${(size.h - h).toFixed(1)}px ${(size.w - w).toFixed(1)}px 0 -12px round ${r.toFixed(1)}px)`;
+  if (text) text.style.opacity = smoothstep(60, 260, age).toFixed(3);
 }
 
 function Separator({ label }: { label: string }) {
@@ -273,18 +369,20 @@ function Separator({ label }: { label: string }) {
 }
 
 /** "Delivered" until the other side starts replying, then "Read <time>". */
-function Receipt({ m, getTime }: { m: PlannedMessage; getTime: () => number }) {
+function Receipt({ m, getTime, seed }: { m: PlannedMessage; getTime: () => number; seed: number }) {
   const ref = useRef<HTMLDivElement>(null);
   useTicker(() => {
     const el = ref.current;
     if (!el) return;
-    const read = m.readAt !== null && getTime() >= m.readAt;
-    if (el.dataset['read'] !== String(read)) el.dataset['read'] = String(read);
+    const read = String(m.readAt !== null && getTime() >= m.readAt);
+    if (el.dataset['read'] !== read) el.dataset['read'] = read;
   });
   return (
     <div className="thread-receipt" ref={ref} data-read="false">
       <span className="thread-receipt__delivered">Delivered</span>
-      <span className="thread-receipt__read">Read</span>
+      <span className="thread-receipt__read">
+        <b>Read</b> {m.readAt !== null ? clockLabel(m.readAt, seed) : ''}
+      </span>
     </div>
   );
 }

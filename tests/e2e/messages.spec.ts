@@ -63,6 +63,44 @@ test.describe('Messages · Thread', () => {
   });
 });
 
+test.describe('Song changes', () => {
+  const opening = {
+    thread: '.thread-intro__name',
+    lockscreen: '.lock-player__title',
+    drift: '.drift-title__name',
+  } as const;
+  for (const [variation, selector] of Object.entries(opening)) {
+    test(`${variation}: a new song opens on its own title card, never a blank screen`, async () => {
+      await selectScene(page, 'messages', variation);
+      await page.evaluate(() => window.__afterglowTest!.selectTrack(1));
+      await freezeAt(page, 400, 1400);
+      const expected = variation === 'thread' ? 'Afterglow Demo Session' : 'Long Way Round';
+      await expect(page.locator(`.scene-layer[data-phase="live"] ${selector}`)).toHaveText(
+        expected,
+      );
+      await expect(page.locator(`.scene-layer[data-phase="live"] ${selector}`)).toBeVisible();
+      await page.screenshot({ path: join(shots, `msg-${variation}-new-song.png`) });
+      await page.evaluate(() => window.__afterglowTest!.selectTrack(0));
+      await page.waitForTimeout(1200);
+    });
+  }
+
+  test('the old conversation hands over to the new one instead of cutting', async () => {
+    await selectScene(page, 'messages', 'thread');
+    await freezeAt(page, 30_000);
+    await page.evaluate(() => window.__afterglowTest!.selectTrack(1));
+    await page.waitForTimeout(150);
+    // Mid-transition: the old song's thread (frozen) is still on screen as it leaves.
+    await expect(
+      page.locator('.scene-layer[data-phase="exit"] .thread-item--msg').first(),
+    ).toBeVisible();
+    await page.waitForTimeout(1400);
+    await expect(page.locator('.scene-layer')).toHaveCount(1);
+    await page.evaluate(() => window.__afterglowTest!.selectTrack(0));
+    await page.waitForTimeout(1200);
+  });
+});
+
 for (const variation of ['lockscreen', 'drift'] as const) {
   test.describe(`Messages · ${variation}`, () => {
     test.beforeAll(async () => selectScene(page, 'messages', variation));
