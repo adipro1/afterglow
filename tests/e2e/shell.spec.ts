@@ -1,34 +1,14 @@
-import {
-  _electron as electron,
-  expect,
-  test,
-  type ElectronApplication,
-  type Page,
-} from '@playwright/test';
-import { mkdtempSync, mkdirSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-
-const root = resolve(__dirname, '../..');
-const shots = join(root, 'test-results', 'screens');
+import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
+import { join } from 'node:path';
+import { launch, selectScene, shots } from './launch';
 
 let app: ElectronApplication;
 let page: Page;
 
 test.beforeAll(async () => {
-  mkdirSync(shots, { recursive: true });
-  app = await electron.launch({
-    args: [root],
-    cwd: root,
-    env: {
-      ...process.env,
-      // Fresh, throwaway app-data so tests never read or write the owner's settings.
-      AFTERGLOW_USER_DATA: mkdtempSync(join(tmpdir(), 'afterglow-e2e-')),
-    },
-  });
-  page = await app.firstWindow();
-  await page.waitForLoadState('domcontentloaded');
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1440, 900));
+  ({ app, page } = await launch());
+  // These shell tests use the Prelude view, whose current line is easy to assert on.
+  await selectScene(page, 'prelude');
 });
 
 test.afterAll(async () => {
@@ -136,4 +116,15 @@ test('enters and leaves fullscreen', async () => {
       app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isFullScreen()),
     )
     .toBe(false);
+});
+
+test('switches scene and variation from the keyboard', async () => {
+  await page.keyboard.press('s');
+  await expect(page.getByTestId('stage')).toHaveAttribute('data-scene', 'messages');
+  const before = await page.getByTestId('stage').getAttribute('data-variation');
+  await page.keyboard.press('v');
+  await expect(page.getByTestId('stage')).not.toHaveAttribute('data-variation', before!);
+  // Only the incoming scene survives the transition — the old one is unmounted.
+  await page.waitForTimeout(1300);
+  await expect(page.locator('.scene-layer')).toHaveCount(1);
 });

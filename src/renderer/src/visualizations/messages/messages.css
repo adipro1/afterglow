@@ -1,0 +1,328 @@
+/* ═════════════ Messages — shared ═════════════ */
+.messages-scene {
+  --msg-font: clamp(13.5px, 1.32cqw, 17px);
+  --bubble-in: color-mix(in oklab, #1e1b22 90%, var(--tint-1));
+  --bubble-in-text: color-mix(in oklab, #efe9e1 82%, var(--tint-1));
+  --bubble-out-top: color-mix(in oklab, var(--tint-2) 88%, white);
+  --bubble-out: color-mix(in oklab, var(--tint-2) 86%, #0c1430);
+  --bubble-out-text: #f7f8ff;
+}
+.messages-scene > * {
+  position: absolute;
+  inset: 0;
+}
+
+.bubble {
+  position: relative;
+  display: inline-block;
+  max-width: min(64%, 34em);
+  padding: 0.52em 0.86em 0.56em;
+  border-radius: 1.2em;
+  font-family: var(--font-ui);
+  font-size: var(--msg-font);
+  font-weight: 450;
+  line-height: 1.32;
+  letter-spacing: -0.006em;
+  text-wrap: pretty;
+  user-select: none;
+}
+.bubble--in {
+  background: var(--bubble-in);
+  color: var(--bubble-in-text);
+  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.05);
+}
+.bubble--out {
+  background: linear-gradient(180deg, var(--bubble-out-top), var(--bubble-out));
+  color: var(--bubble-out-text);
+}
+/* Grouped bubbles tuck their corners on the speaker's side, like a real thread. */
+.bubble--in:not(.is-first) {
+  border-top-left-radius: 0.38em;
+}
+.bubble--in:not(.is-last) {
+  border-bottom-left-radius: 0.38em;
+}
+.bubble--out:not(.is-first) {
+  border-top-right-radius: 0.38em;
+}
+.bubble--out:not(.is-last) {
+  border-bottom-right-radius: 0.38em;
+}
+.bubble__tail {
+  position: absolute;
+  bottom: 0;
+  width: 0.62em;
+  height: 0.84em;
+}
+.bubble--in .bubble__tail {
+  left: -0.26em;
+  fill: var(--bubble-in);
+  transform: scaleX(-1);
+}
+.bubble--out .bubble__tail {
+  right: -0.26em;
+  fill: var(--bubble-out);
+}
+.bubble--in.is-last {
+  border-bottom-left-radius: 0.5em;
+}
+.bubble--out.is-last {
+  border-bottom-right-radius: 0.5em;
+}
+
+/* Words light up as they're sung (incoming); outgoing text was already typed. */
+.bw {
+  transition:
+    opacity 260ms var(--ease-out-quart),
+    filter 260ms var(--ease-out-quart);
+}
+.bw[data-sung='0'] {
+  opacity: 0.24;
+  filter: blur(0.6px);
+}
+
+.bubble--typing {
+  padding: 0.78em 0.95em;
+}
+.typing-dots {
+  display: flex;
+  gap: 0.28em;
+}
+.typing-dots i {
+  width: 0.46em;
+  height: 0.46em;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--bubble-in-text), transparent 20%);
+  opacity: 0.4;
+}
+
+/* ═════════════ Thread ═════════════ */
+.msg-thread {
+  display: grid;
+  place-items: center;
+}
+.msg-thread__rig {
+  position: relative;
+  width: min(980px, 74cqw, 132cqh);
+  z-index: 2;
+  transform-origin: 50% 50%;
+}
+.msg-thread__window {
+  width: 100%;
+  aspect-ratio: 16 / 10.4;
+  max-height: 94cqh;
+}
+.msg-thread__window .edge-panel__body {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+.msg-thread__art {
+  position: absolute;
+  right: 0;
+  bottom: 2cqh;
+  width: min(34cqh, 24cqw);
+  aspect-ratio: 1;
+  z-index: 1;
+}
+.msg-thread__art .edge-panel {
+  width: 100%;
+  height: 100%;
+}
+.msg-thread__art-inner {
+  position: absolute;
+  inset: 0;
+}
+.msg-thread__art-inner .artwork {
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.thread-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 26px 14px;
+  border-bottom: 1px solid var(--ink-line);
+}
+.thread-head__who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.thread-head__avatar .artwork {
+  border-radius: 9px;
+}
+.thread-head__name {
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+.thread-head__status {
+  position: relative;
+  height: 16px;
+  margin-top: 2px;
+  font-size: 12px;
+}
+.thread-head__sub,
+.thread-head__typing {
+  position: absolute;
+  left: 0;
+  white-space: nowrap;
+  transition:
+    opacity 300ms var(--ease-out-quart),
+    transform 400ms var(--ease-out-expo);
+}
+.thread-head__sub {
+  color: var(--text-lo);
+}
+.thread-head__typing {
+  color: var(--tint-1);
+  opacity: 0;
+  transform: translateY(5px);
+}
+.thread-head__status[data-typing='1'] .thread-head__sub {
+  opacity: 0;
+  transform: translateY(-5px);
+}
+.thread-head__status[data-typing='1'] .thread-head__typing {
+  opacity: 1;
+  transform: none;
+}
+.thread-head__actions {
+  display: flex;
+  gap: 18px;
+  color: var(--text-lo);
+}
+
+.thread-body {
+  position: relative;
+  overflow: hidden;
+  margin: 0 auto;
+  width: min(640px, 82%);
+  /* Older messages dissolve into the dark as they scroll away. */
+  mask-image: linear-gradient(180deg, transparent 0, transparent 4%, black 34%, black 100%);
+}
+.thread-item {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  display: flex;
+  will-change: transform, opacity;
+}
+.thread-item.side-in {
+  justify-content: flex-start;
+  padding-left: 6px;
+  transform-origin: 0% 100%;
+}
+.thread-item.side-out {
+  justify-content: flex-end;
+  padding-right: 6px;
+  transform-origin: 100% 100%;
+}
+.thread-item--sep {
+  justify-content: center;
+}
+.thread-sep {
+  font-size: 11px;
+  color: var(--text-lo);
+  letter-spacing: 0.01em;
+}
+.thread-sep b {
+  font-weight: 600;
+  color: var(--text-mid);
+}
+.thread-receipt {
+  position: relative;
+  height: 14px;
+  min-width: 80px;
+  font-size: 11px;
+  color: var(--text-lo);
+  text-align: right;
+  padding-right: 4px;
+}
+.thread-receipt span {
+  position: absolute;
+  right: 4px;
+  transition: opacity 500ms var(--ease-out-quart);
+}
+.thread-receipt__read {
+  opacity: 0;
+  color: var(--text-mid);
+}
+.thread-receipt[data-read='true'] .thread-receipt__delivered {
+  opacity: 0;
+}
+.thread-receipt[data-read='true'] .thread-receipt__read {
+  opacity: 1;
+}
+
+.compose {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 auto;
+  width: min(680px, 86%);
+  padding: 10px 0 22px;
+}
+.compose__plus {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  color: var(--text-lo);
+}
+.compose__field {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 17px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.09);
+  font-size: var(--msg-font);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.compose__placeholder {
+  position: absolute;
+  color: var(--text-lo);
+  transition: opacity 200ms;
+}
+.compose__field[data-state='typing'] .compose__placeholder {
+  opacity: 0;
+}
+.compose__text {
+  color: var(--text-hi);
+}
+.compose__caret {
+  width: 1.5px;
+  height: 1.15em;
+  margin-left: 1px;
+  border-radius: 1px;
+  background: var(--tint-2);
+}
+.compose__field[data-state='empty'] .compose__caret {
+  margin-left: 0;
+}
+.compose__send {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  color: var(--text-lo);
+  transition:
+    background 220ms var(--ease-out-quart),
+    color 220ms var(--ease-out-quart);
+}
+.compose__send[data-active='1'] {
+  background: var(--tint-2);
+  color: white;
+}

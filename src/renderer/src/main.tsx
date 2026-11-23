@@ -7,6 +7,9 @@ import '@fontsource/barlow-condensed/700.css';
 import './styles/tokens.css';
 import './styles/base.css';
 import { App } from './app/App';
+import { installTestHooks } from './app/test-hooks';
+
+installTestHooks();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

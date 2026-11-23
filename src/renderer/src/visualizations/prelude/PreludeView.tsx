@@ -2,12 +2,11 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { LyricLine, LyricsDocument, TrackRef } from '@shared/lyrics';
 import { locate } from '@/lyrics/cursor';
 import { useTicker } from '@/engine/ticker';
-import { runtime, usePlayback } from '@/state/playback';
-import { formatTime } from './hooks';
+import { formatTime } from '@/app/format';
+import type { SceneProps } from '../types';
 
 /**
- * Prelude — the shell's built-in lyric view (Phase 1). A restrained, typographic baseline that
- * proves sync end-to-end; the visualisation library (Phase 2+) renders into the same stage.
+ * Prelude — a restrained, typographic baseline: lyrics in a single floating window.
  *
  * Lines move between slots (-2 … +2 around the current line). Elements are keyed by line id,
  * so a line physically travels from "next" to "current" to "previous" with CSS transitions.
@@ -29,10 +28,12 @@ const BREAK_AFTER_MS = 1600;
 /** …and stops counting this long before the next line, so the line "wakes" early. */
 const BREAK_LEAD_MS = 900;
 
-export function PreludeView() {
-  const lyrics = usePlayback((s) => s.lyrics);
-  const track = usePlayback((s) => s.track);
-  const discontinuity = usePlayback((s) => s.discontinuity);
+export function PreludeView({
+  lyrics,
+  track,
+  discontinuity,
+  getTime,
+}: Pick<SceneProps, 'lyrics' | 'track' | 'discontinuity' | 'getTime'>) {
   const [anchor, setAnchor] = useState(-1);
   const anchorRef = useRef(-1);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -41,10 +42,10 @@ export function PreludeView() {
 
   const entries = useMemo(() => visibleEntries(lyrics, track, anchor), [lyrics, track, anchor]);
 
-  useTicker(({ now }) => {
+  useTicker(() => {
     const root = rootRef.current;
     if (!root) return;
-    const t = runtime.position(now);
+    const t = getTime();
 
     const sec = Math.floor(t / 1000);
     if (sec !== lastSec.current && timeRef.current) {

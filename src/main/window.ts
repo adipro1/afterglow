@@ -86,9 +86,11 @@ export function createMainWindow(settings: SettingsStore): BrowserWindow {
   win.on('unmaximize', persistBounds);
   win.on('close', persistBounds);
 
+  // Test runs get a renderer-side hook for deterministic screenshots (never in normal use).
+  const query: Record<string, string> = process.env['AFTERGLOW_TEST'] === '1' ? { test: '1' } : {};
   const devUrl = process.env['ELECTRON_RENDERER_URL'];
-  if (devUrl) void win.loadURL(devUrl);
-  else void win.loadFile(join(__dirname, '../renderer/index.html'));
+  if (devUrl) void win.loadURL(`${devUrl}${query['test'] ? '?test=1' : ''}`);
+  else void win.loadFile(join(__dirname, '../renderer/index.html'), { query });
 
   return win;
 }

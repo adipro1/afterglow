@@ -22,8 +22,9 @@ export function paletteFor(track: TrackRef | null): ArtPalette {
   return (track && demoCovers[track.key]?.palette) || fallbackPalette;
 }
 
-export function Artwork({ track, size }: { track: TrackRef | null; size: number }) {
-  const style = { width: size, height: size };
+export function Artwork({ track, size }: { track: TrackRef | null; size?: number }) {
+  // No size → fill the parent (which must be square).
+  const style = size ? { width: size, height: size } : { width: '100%', height: '100%' };
   if (track?.artworkUrl) {
     return (
       <img className="artwork" src={track.artworkUrl} alt="" style={style} draggable={false} />
