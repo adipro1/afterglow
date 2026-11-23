@@ -1,0 +1,3 @@
+#!/bin/sh
+# Blocks any commit that would put secrets, personal details, media or lyrics into the repo.
+exec node scripts/public-safety.mjs --staged

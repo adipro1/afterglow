@@ -8,7 +8,7 @@ to the next phase (see `docs/phase-0-plan.md` §11 for the roadmap).
 
 - `npm run dev` — run the app with hot reload (development build: React debug mode, noticeably slower — never judge smoothness here)
 - `npm start` — build and run the optimised production app (use this to judge smoothness)
-- `npm run check` — typecheck + lint + format check + unit tests (run before every commit)
+- `npm run check` — public-safety scan + typecheck + lint + format check + unit tests (run before every commit)
 - `npm run test:e2e` — build, launch the real Electron app with Playwright, save screenshots to `test-results/screens/` (app launched with `AFTERGLOW_TEST=1` exposes `window.__afterglowTest` for exact-time freezes)
 - Electron binary downloads lazily: if missing, `node node_modules/electron/install.js`
 
@@ -39,6 +39,12 @@ to the next phase (see `docs/phase-0-plan.md` §11 for the roadmap).
 - Fonts: OFL-licensed only (Inter, Barlow Condensed, JetBrains Mono so far). No SF Pro.
 - Review every visual change with a real screenshot, not just code.
 
-## Never commit
+## Public-safe at all times
 
-Secrets/tokens, `refrences/` (third-party clips), user lyrics/audio, copyrighted lyrics. Demo songs in `src/renderer/src/demo/` are original.
+The repo must always be safe to make public — treat every commit as if it were published.
+
+- Never commit: secrets/tokens/keys (Spotify client secret, refresh/access tokens, signing certificates), `.env` files, personal details (real name, personal email, `C:\Users\<name>` paths), `refrences/` (third-party clips), user lyrics/audio, copyrighted lyrics, art or fonts we have no licence for. Demo songs in `src/renderer/src/demo/` are original.
+- Secrets live only on the user's machine (OS credential store via Electron `safeStorage`, or a git-ignored `.env`); ship a `.env.example` with empty values. Spotify uses PKCE, so there is no client secret at all.
+- Logs, error messages, test output, screenshots and CI artifacts must never contain tokens or personal data (they can become public too). E2E tests use demo songs only.
+- Guard: `scripts/public-safety.mjs` runs in `npm run check`, in the pre-commit hook (`.githooks/`, installed by `npm install`) and over the whole history in CI. Never bypass it (`--no-verify`); fix the cause. Personal words to block live in git-ignored `.public-safety.local`.
+- Commits use the GitHub noreply address (`git config user.email`), never a personal email.
