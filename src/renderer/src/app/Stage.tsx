@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import type { LyricsDocument, TrackRef } from '@shared/lyrics';
 import { useReducedMotion } from '@/design/useReducedMotion';
-import { useTicker } from '@/engine/ticker';
+import {
+  layerStyle,
+  sceneTransitions,
+  useTicker,
+  type LayerPhase,
+  type SceneTransitionId,
+} from '@/engine';
 import { runtime, usePlayback } from '@/state/playback';
 import { useScene } from '@/state/scene';
 import { findEntry } from '@/visualizations/registry';
@@ -11,12 +17,13 @@ interface Layer {
   key: string;
   mod: VisualizationModule;
   variation: string;
-  phase: 'enter' | 'live' | 'exit';
+  phase: LayerPhase;
+  /** How this layer arrives and, later, leaves. */
+  transition: SceneTransitionId;
   /** Exiting layers keep the song they were showing, frozen at the moment they left. */
   frozen?: { lyrics: LyricsDocument | null; track: TrackRef | null; at: number };
 }
 
-const EXIT_MS = 1000;
 const getTime = () => runtime.position();
 
 let counter = 0;
@@ -38,6 +45,11 @@ export function Stage() {
   const track = usePlayback((s) => s.track);
   const discontinuity = usePlayback((s) => s.discontinuity);
   const reducedMotion = useReducedMotion();
+  // Read through a ref so the hand-off helper below stays stable across renders.
+  const reducedRef = useRef(reducedMotion);
+  useEffect(() => {
+    reducedRef.current = reducedMotion;
+  }, [reducedMotion]);
   const [layers, setLayers] = useState<Layer[]>([]);
   const [label, setLabel] = useState<string | null>(null);
 
@@ -59,20 +71,29 @@ export function Stage() {
   });
 
   /** Retire current layers and surface a new one (after the next two frames, so CSS animates). */
-  const surface = (mod: VisualizationModule, v: string, frozen?: Layer['frozen']) => {
+  const surface = (
+    mod: VisualizationModule,
+    v: string,
+    frozen?: Layer['frozen'],
+    transition: SceneTransitionId = 'sink',
+  ) => {
+    const id: SceneTransitionId = reducedRef.current ? 'fade' : transition;
     const key = nextKey(mod.meta.id, v);
     setLayers((prev) => [
       ...prev
         .filter((l) => l.phase !== 'exit')
-        .map((l) => ({ ...l, phase: 'exit' as const, frozen: l.frozen ?? frozen })),
-      { key, mod, variation: v, phase: 'enter' },
+        .map((l) => ({ ...l, phase: 'exit' as const, transition: id, frozen: l.frozen ?? frozen })),
+      { key, mod, variation: v, phase: 'enter', transition: id },
     ]);
     requestAnimationFrame(() =>
       requestAnimationFrame(() =>
         setLayers((prev) => prev.map((l) => (l.key === key ? { ...l, phase: 'live' } : l))),
       ),
     );
-    setTimeout(() => setLayers((prev) => prev.filter((l) => l.phase !== 'exit')), EXIT_MS);
+    setTimeout(
+      () => setLayers((prev) => prev.filter((l) => l.phase !== 'exit')),
+      sceneTransitions[id].totalMs,
+    );
   };
 
   useEffect(() => {
@@ -129,7 +150,12 @@ export function Stage() {
         };
         const { Scene } = l.mod;
         return (
-          <div key={l.key} className="scene-layer" data-phase={l.phase}>
+          <div
+            key={l.key}
+            className="scene-layer"
+            data-phase={l.phase}
+            style={layerStyle(sceneTransitions[l.transition], l.phase)}
+          >
             <Scene {...props} />
           </div>
         );

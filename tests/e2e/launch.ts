@@ -22,10 +22,15 @@ export async function launch(size = { width: 1440, height: 900 }) {
   const page: Page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await page.waitForFunction(() => !!window.__afterglowTest);
-  await app.evaluate(
-    ({ BrowserWindow }, s) => BrowserWindow.getAllWindows()[0]?.setSize(s.width, s.height),
-    size,
-  );
+  // Never as large as the screen: Windows trims oversized windows at unpredictable moments,
+  // which would make screenshots inconsistent. Clamped once, so a run is consistent throughout.
+  await app.evaluate(({ BrowserWindow, screen }, s) => {
+    const area = screen.getPrimaryDisplay().workAreaSize;
+    const win = BrowserWindow.getAllWindows()[0];
+    // A margin too: Windows also adjusts windows that exactly fill the screen.
+    win?.setSize(Math.min(s.width, area.width - 40), Math.min(s.height, area.height - 40));
+    win?.center();
+  }, size);
   return { app, page };
 }
 
