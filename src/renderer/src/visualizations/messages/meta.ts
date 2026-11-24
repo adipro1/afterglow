@@ -22,5 +22,9 @@ export const messagesMeta: VisualizationMeta = {
       description: 'No interface — just the bubbles, suspended in space and receding.',
     },
   ],
-  themes: ['messages', 'conversation', 'longing', 'separation', 'technology'],
+  themes: ['messages', 'conversation', 'longing', 'separation', 'technology', 'memory', 'night'],
+  energy: [0.2, 0.9],
+  moods: ['melancholic', 'tender', 'reflective', 'tense'],
+  // Desk → phone in the dark → nothing but the words in space.
+  escalation: ['thread', 'lockscreen', 'drift'],
 };

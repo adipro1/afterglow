@@ -1,10 +1,14 @@
 import { useEffect } from 'react';
 import { paletteFor } from '@/design/Artwork';
 import { usePlayback } from '@/state/playback';
+import { DropTarget } from './DropTarget';
+import { LyricsPanel } from './LyricsPanel';
 import { NowPlayingDock } from './NowPlayingDock';
 import { Stage } from './Stage';
 import { StatusCluster } from './StatusCluster';
+import { TimingEditor } from './TimingEditor';
 import { TitleBar } from './TitleBar';
+import { Toast } from './Toast';
 import { useIdle, useShortcuts, useWindowState } from './hooks';
 import './app.css';
 
@@ -32,6 +36,10 @@ export function App() {
       <Stage />
       <NowPlayingDock hidden={chromeHidden} />
       <StatusCluster isFullScreen={win.isFullScreen} hidden={chromeHidden} />
+      <LyricsPanel />
+      <TimingEditor />
+      <Toast />
+      <DropTarget />
       <div className="grain" aria-hidden />
     </div>
   );

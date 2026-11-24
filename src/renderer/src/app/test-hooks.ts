@@ -3,8 +3,10 @@ import { ambient } from '@/engine/ambient';
 import { ticker } from '@/engine/ticker';
 import { isControllable } from '@/playback/types';
 import { DemoPlaybackSource } from '@/playback/demo-source';
-import { runtime } from '@/state/playback';
+import { runtime, usePlayback } from '@/state/playback';
 import { useScene } from '@/state/scene';
+import { useDirector } from '@/director/store';
+import { importLyricsText } from '@/lyrics/importer';
 
 /**
  * Endless CSS animations (e.g. the edge light breathing) run on their own clock, which a freeze
@@ -46,7 +48,35 @@ export function installTestHooks(): void {
       const s = src();
       if (s instanceof DemoPlaybackSource) s.select(index);
     },
-    selectScene: (id, v) => useScene.getState().select(id, v),
+    // A test picking a scene is like the user picking one: the director stands aside.
+    selectScene: (id, v) => {
+      useDirector.getState().setMode('manual');
+      useScene.getState().select(id, v);
+    },
+    setDirector: (mode) => useDirector.getState().setMode(mode),
+    director: () => {
+      const d = useDirector.getState();
+      const s = useScene.getState();
+      return {
+        mode: d.mode,
+        sceneId: s.sceneId,
+        variation: s.variation,
+        cues:
+          d.plan?.cues.map((c) => ({ atMs: c.atMs, sceneId: c.sceneId, variation: c.variation })) ??
+          [],
+        sections:
+          d.interpretation?.sections.map((x) => ({ kind: x.kind, startMs: x.startMs })) ?? [],
+      };
+    },
+    importLyrics: (name, text) => importLyricsText(name, text),
+    lyrics: () => {
+      const p = usePlayback.getState();
+      return {
+        origin: p.lyricsOrigin,
+        sync: p.lyrics?.sync ?? null,
+        lines: p.lyrics?.lines.length ?? 0,
+      };
+    },
     position: (at) => runtime.position(at),
     resetPerf: () => ticker.resetStats(),
     perf: () => ticker.stats(),

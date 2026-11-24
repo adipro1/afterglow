@@ -34,6 +34,17 @@ to the next phase (see `docs/phase-0-plan.md` §11 for the roadmap).
 - GPU budget: animate only `transform` and `opacity` on elements with `will-change`. No per-frame changes to `filter`, `backdrop-filter`, `mask`, `clip-path` on large elements, CSS variables inherited by big subtrees, or `mix-blend-mode`. Static effects are fine; animated ones need a compositor-only equivalent (cross-fade pre-drawn layers, overlays).
 - Springs: use `springs.*` / `appleSpring(response, dampingFraction)`; in CSS use `--ease-spring` / `--ease-spring-soft`.
 
+## Lyrics, analysis and the director (Phase 4, `docs/phase-4-lyrics-director.md`)
+
+- Lyric files: `lyrics/formats.ts` (LRC incl. enhanced word tags, SRT/VTT, plain text, `toLrc`). Pure, never throw — problems become `warnings`. Tests in `tests/unit/lyrics-formats.test.ts`.
+- Lyrics providers (priority): timing-editor draft → user library (`lyrics/library.ts`, mirrored in memory, persisted by `src/main/lyrics-library.ts` under app-data, file names = hash of track key) → demo. Lookups are synchronous so a song and its lyrics change together.
+- Own audio: `playback/local-file-source.ts` plays blob URLs of files the user picked/dropped (no disk paths reach the renderer).
+- Timing editor: pure model in `lyrics/timing.ts` (every edit returns a new draft → undo), store in `lyrics/editor-store.ts`, UI `app/TimingEditor.tsx`. Taps use the key event's `timeStamp`.
+- Interpretation: `interpret/structure.ts` (sections from gaps + repetition), `interpret/lexicon.ts` (curated themes, phrase rules, negation), `interpret/interpreter.ts` (`Interpreter` interface, deterministic `localInterpreter`). Types in `src/shared/interpretation.ts`. Any future model pass is opt-in, shows what is sent, and only refines.
+- Director: `director/director.ts` is pure (`directSong`); `director/runtime.ts` follows playback outside React; `director/store.ts` holds mode/overrides. Scenes declare `themes`, `energy`, `moods`, `escalation`, `baseline` in `meta.ts` — that's all the director needs to use a new visualisation.
+- Tests that pick a scene (`selectScene`) put the director in manual mode, like the user pressing S/V.
+- Never commit user lyrics or audio. Test fixtures are original text and generated tones.
+
 ## Design rules
 
 - Tokens in `src/renderer/src/styles/tokens.css`. Darkness is the material; the only chrome accent is the magenta→violet edge light (`EdgePanel`).

@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import {
   IpcChannels,
+  StoredLyricsSchema,
   WindowStateSchema,
   type AfterglowBridge,
   type WindowCommand,
@@ -21,6 +22,19 @@ const bridge: AfterglowBridge = {
       ipcRenderer.on(IpcChannels.windowState, listener);
       return () => ipcRenderer.removeListener(IpcChannels.windowState, listener);
     },
+  },
+  lyrics: {
+    list: async () => {
+      const raw: unknown = await ipcRenderer.invoke(IpcChannels.lyricsList);
+      return StoredLyricsSchema.array().parse(raw);
+    },
+    save: async (entry) => {
+      await ipcRenderer.invoke(IpcChannels.lyricsSave, entry);
+    },
+    remove: async (trackKey) => {
+      await ipcRenderer.invoke(IpcChannels.lyricsRemove, trackKey);
+    },
+    export: async (file) => Boolean(await ipcRenderer.invoke(IpcChannels.lyricsExport, file)),
   },
 };
 
