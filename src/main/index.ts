@@ -1,5 +1,14 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
-import { IpcChannels, WindowCommandSchema, type WindowState } from '@shared/ipc';
+import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { promises as fs } from 'node:fs';
+import {
+  IpcChannels,
+  LyricsExportSchema,
+  StoredLyricsSchema,
+  TrackKeySchema,
+  WindowCommandSchema,
+  type WindowState,
+} from '@shared/ipc';
+import { LyricsLibrary } from './lyrics-library';
 import { SettingsStore } from './settings-store';
 import { createMainWindow, getWindowState } from './window';
 
@@ -51,6 +60,36 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(IpcChannels.windowStateRequest, (event): WindowState | null => {
       const win = BrowserWindow.fromWebContents(event.sender);
       return win ? getWindowState(win) : null;
+    });
+
+    const library = new LyricsLibrary();
+    ipcMain.handle(IpcChannels.lyricsList, () => library.list());
+    ipcMain.handle(IpcChannels.lyricsSave, (_e, raw: unknown) => {
+      const entry = StoredLyricsSchema.safeParse(raw);
+      if (!entry.success) throw new Error('Those lyrics could not be saved (invalid data).');
+      return library.save(entry.data);
+    });
+    ipcMain.handle(IpcChannels.lyricsRemove, (_e, raw: unknown) => {
+      const key = TrackKeySchema.safeParse(raw);
+      if (key.success) return library.remove(key.data);
+    });
+    ipcMain.handle(IpcChannels.lyricsExport, async (event, raw: unknown) => {
+      const file = LyricsExportSchema.safeParse(raw);
+      const win = BrowserWindow.fromWebContents(event.sender);
+      if (!file.success || !win) return false;
+      // Only a name is suggested; the user picks the folder in the system dialog.
+      const name = [...file.data.fileName]
+        .map((ch) => (ch.charCodeAt(0) < 32 || '\\/:*?"<>|'.includes(ch) ? '_' : ch))
+        .join('')
+        .slice(0, 200);
+      const result = await dialog.showSaveDialog(win, {
+        title: 'Export lyrics',
+        defaultPath: name.endsWith('.lrc') ? name : `${name}.lrc`,
+        filters: [{ name: 'LRC lyrics', extensions: ['lrc'] }],
+      });
+      if (result.canceled || !result.filePath) return false;
+      await fs.writeFile(result.filePath, file.data.text, 'utf8');
+      return true;
     });
 
     mainWindow = createMainWindow(settings);

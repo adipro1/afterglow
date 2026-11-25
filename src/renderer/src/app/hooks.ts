@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import type { WindowState } from '@shared/ipc';
 import { runtime } from '@/state/playback';
 import { isControllable } from '@/playback/types';
-import { DemoPlaybackSource } from '@/playback/demo-source';
+import { useDirector } from '@/director/store';
+import { editor } from '@/lyrics/editor-store';
 import { useScene } from '@/state/scene';
+import { useUi } from './ui';
 
 const initialWindowState: WindowState = {
   isMaximized: false,
@@ -55,6 +57,8 @@ export function useShortcuts(isFullScreen: boolean): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.altKey || e.metaKey || e.repeat) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
       const src = runtime.source;
       switch (e.key) {
         case 'F11':
@@ -68,11 +72,31 @@ export function useShortcuts(isFullScreen: boolean): void {
           return;
         case 'v':
         case 'V':
+          // Picking yourself hands the stage to you (A gives it back to the director).
+          useDirector.getState().setMode('manual');
           useScene.getState().cycleVariation(e.shiftKey ? -1 : 1);
           return;
         case 's':
         case 'S':
+          useDirector.getState().setMode('manual');
           useScene.getState().cycleScene(e.shiftKey ? -1 : 1);
+          return;
+        case 'a':
+        case 'A':
+          useDirector.getState().toggleMode();
+          return;
+        case 'x':
+        case 'X':
+          useDirector.getState().skip(useScene.getState().sceneId);
+          return;
+        case 'l':
+        case 'L':
+          useUi.getState().toggleLyricsPanel();
+          return;
+        case 't':
+        case 'T':
+          useUi.getState().toggleLyricsPanel(false);
+          editor.openForCurrent();
           return;
       }
       if (!isControllable(src)) return;
@@ -90,11 +114,11 @@ export function useShortcuts(isFullScreen: boolean): void {
           break;
         case 'n':
         case 'N':
-          if (src instanceof DemoPlaybackSource) src.next();
+          src.next?.();
           break;
         case 'p':
         case 'P':
-          if (src instanceof DemoPlaybackSource) src.previous();
+          src.previous?.();
           break;
       }
     };

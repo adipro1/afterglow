@@ -33,6 +33,9 @@ export interface ControllablePlaybackSource extends PlaybackSource {
   play(): void;
   pause(): void;
   seek(ms: number): void;
+  /** Sources with a queue (demo songs, several opened files). */
+  next?(): void;
+  previous?(): void;
 }
 
 export function isControllable(s: PlaybackSource): s is ControllablePlaybackSource {

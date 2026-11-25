@@ -2,11 +2,13 @@
 
 Real-time lyric visualisation for Windows: turns the meaning of a song into cinematic, art-directed visual scenes that stay in sync with playback.
 
-**Status:** Phase 2 complete — the first visualisation, **Messages** (three compositions: Thread, Lock Screen, Drift), on top of the Phase 1 shell. Next: Phase 3, the reusable animation engine.
+**Status:** Phase 4 complete — your own lyrics (.lrc / .srt / text) and audio files, a tap-along timing editor, song analysis (sections, themes, mood) and the adaptive director that picks a scene for each part of a song. Next: Phase 5, Spotify.
 
 - Plan, research and roadmap: [docs/phase-0-plan.md](docs/phase-0-plan.md)
 - Phase 1 notes: [docs/phase-1-foundation.md](docs/phase-1-foundation.md)
 - Phase 2 notes: [docs/phase-2-messages.md](docs/phase-2-messages.md)
+- Phase 3 notes: [docs/phase-3-engine.md](docs/phase-3-engine.md)
+- Phase 4 notes: [docs/phase-4-lyrics-director.md](docs/phase-4-lyrics-director.md)
 
 ## Running it
 
@@ -18,9 +20,9 @@ node node_modules/electron/install.js   # first time only: downloads the Electro
 npm run dev
 ```
 
-Shortcuts: `Space` play/pause · `←/→` seek 5 s · `N`/`P` next/previous track · `F` or `F11` fullscreen · `Esc` leave fullscreen · `V` next variation · `S` next visualisation (hold `Shift` to go back).
+Shortcuts: `Space` play/pause · `←/→` seek 5 s · `N`/`P` next/previous track · `F` or `F11` fullscreen · `Esc` leave fullscreen · `L` lyrics panel · `T` timing editor · `A` director on/off · `X` skip this scene here · `V` next variation · `S` next visualisation (hold `Shift` to go back; both switch the director to manual).
 
-The demo songs have lyrics and timing but no audio yet — playback is silent until local-file playback (Phase 4) or Spotify (Phase 5).
+The demo songs have lyrics and timing but no audio. To hear music, open or drop your own audio file (press `L`), then import or time its lyrics. Your files and lyrics stay on your computer.
 
 ## Checks
 

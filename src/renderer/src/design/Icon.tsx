@@ -66,6 +66,20 @@ const paths = {
     </>
   ),
   plus: <path d="M8 4v8M4 8h8" />,
+  lyrics: <path d="M3 4.5h10M3 8h7M3 11.5h8.5" />,
+  note: (
+    <>
+      <path d="M6.5 11.5V3.8l6-1.3v7.4" />
+      <circle cx="5" cy="11.6" r="1.6" />
+      <circle cx="11" cy="10" r="1.6" />
+    </>
+  ),
+  tap: (
+    <>
+      <circle cx="8" cy="8" r="2.2" />
+      <circle cx="8" cy="8" r="5.3" strokeOpacity={0.45} />
+    </>
+  ),
   arrowUp: <path d="M8 12.5v-9M4.5 7L8 3.5 11.5 7" strokeWidth={1.6} />,
   bubble: (
     <path

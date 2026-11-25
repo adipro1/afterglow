@@ -52,6 +52,8 @@ export function Stage() {
   }, [reducedMotion]);
   const [layers, setLayers] = useState<Layer[]>([]);
   const [label, setLabel] = useState<string | null>(null);
+  /** A song change that also changes scene: the outgoing layer must keep the old song. */
+  const pendingFrozen = useRef<Layer['frozen'] | undefined>(undefined);
 
   // Remember what the outgoing song looked like on its last frame.
   const last = useRef<{
@@ -79,10 +81,14 @@ export function Stage() {
   ) => {
     const id: SceneTransitionId = reducedRef.current ? 'fade' : transition;
     const key = nextKey(mod.meta.id, v);
+    const retiring: string[] = [];
     setLayers((prev) => [
-      ...prev
-        .filter((l) => l.phase !== 'exit')
-        .map((l) => ({ ...l, phase: 'exit' as const, transition: id, frozen: l.frozen ?? frozen })),
+      // Layers already on their way out finish their own exit undisturbed.
+      ...prev.map((l) => {
+        if (l.phase === 'exit') return l;
+        retiring.push(l.key);
+        return { ...l, phase: 'exit' as const, transition: id, frozen: l.frozen ?? frozen };
+      }),
       { key, mod, variation: v, phase: 'enter', transition: id },
     ]);
     requestAnimationFrame(() =>
@@ -91,7 +97,7 @@ export function Stage() {
       ),
     );
     setTimeout(
-      () => setLayers((prev) => prev.filter((l) => l.phase !== 'exit')),
+      () => setLayers((prev) => prev.filter((l) => !retiring.includes(l.key))),
       sceneTransitions[id].totalMs,
     );
   };
@@ -102,7 +108,9 @@ export function Stage() {
     if (!entry) return;
     void entry.load().then((mod) => {
       if (cancelled) return;
-      surface(mod, variation);
+      const frozen = pendingFrozen.current;
+      pendingFrozen.current = undefined;
+      surface(mod, variation, frozen, useScene.getState().transition);
       const v = mod.meta.variations.find((x) => x.id === variation);
       setLabel(`${mod.meta.name}${v && mod.meta.variations.length > 1 ? ` · ${v.name}` : ''}`);
     });
@@ -121,10 +129,20 @@ export function Stage() {
     if (prev.key === null || reducedMotion) return;
     setLayers((ls) => {
       const live = ls.find((l) => l.phase !== 'exit');
-      if (live) queueMicrotask(() => surface(live.mod, live.variation, frozen));
+      const scene = useScene.getState();
+      // The director may open the new song in a different scene: that scene change will do the
+      // hand-off, carrying the old song on the outgoing layer.
+      if (live && (live.mod.meta.id !== scene.sceneId || live.variation !== scene.variation)) {
+        pendingFrozen.current = frozen;
+      } else if (live) queueMicrotask(() => surface(live.mod, live.variation, frozen));
       return ls;
     });
   }, [track, lyrics, reducedMotion]);
+
+  // Lyrics can arrive or change for the same song (imported, edited): keep the hand-off copy fresh.
+  useEffect(() => {
+    if ((track?.key ?? null) === last.current.key) last.current.lyrics = lyrics;
+  }, [track, lyrics]);
 
   // The scene name appears briefly after a switch, then gets out of the way.
   useEffect(() => {

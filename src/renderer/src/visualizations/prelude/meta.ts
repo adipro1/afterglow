@@ -8,5 +8,8 @@ export const preludeMeta: VisualizationMeta = {
   variations: [
     { id: 'window', name: 'Window', description: 'Lyrics in one floating, edge-lit window.' },
   ],
-  themes: ['isolation', 'reflection'],
+  themes: ['reflection', 'isolation', 'hope', 'dreams', 'night', 'time'],
+  energy: [0, 0.55],
+  moods: ['reflective', 'melancholic', 'tender'],
+  baseline: true,
 };

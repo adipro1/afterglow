@@ -5,12 +5,14 @@ import { Icon } from '@/design/Icon';
 import { useTicker } from '@/engine/ticker';
 import { runtime, usePlayback } from '@/state/playback';
 import { isControllable } from '@/playback/types';
-import { DemoPlaybackSource } from '@/playback/demo-source';
 import { formatTime } from './hooks';
+import { SongMap } from './SongMap';
 
 export function NowPlayingDock({ hidden }: { hidden: boolean }) {
   const track = usePlayback((s) => s.track);
   const isPlaying = usePlayback((s) => s.isPlaying);
+  // Re-render when the source changes (demo <-> your own files).
+  usePlayback((s) => s.sourceKind);
   const fillRef = useRef<HTMLDivElement>(null);
   const elapsedRef = useRef<HTMLSpanElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
@@ -70,11 +72,7 @@ export function NowPlayingDock({ hidden }: { hidden: boolean }) {
         </div>
         {controllable && (
           <div className="dock__transport">
-            <button
-              className="iconbtn"
-              aria-label="Previous"
-              onClick={() => src instanceof DemoPlaybackSource && src.previous()}
-            >
+            <button className="iconbtn" aria-label="Previous" onClick={() => src.previous?.()}>
               <Icon name="previous" size={14} />
             </button>
             <button
@@ -85,11 +83,7 @@ export function NowPlayingDock({ hidden }: { hidden: boolean }) {
             >
               <Icon name={isPlaying ? 'pause' : 'play'} size={14} />
             </button>
-            <button
-              className="iconbtn"
-              aria-label="Next"
-              onClick={() => src instanceof DemoPlaybackSource && src.next()}
-            >
+            <button className="iconbtn" aria-label="Next" onClick={() => src.next?.()}>
               <Icon name="next" size={14} />
             </button>
           </div>
@@ -113,6 +107,7 @@ export function NowPlayingDock({ hidden }: { hidden: boolean }) {
           onPointerCancel={() => (scrubbing.current = null)}
         >
           <div className="dock__track" />
+          <SongMap durationMs={duration} />
           <div ref={fillRef} className="dock__fill" />
         </div>
         <span className="dock__time dock__time--total tabular">{formatTime(duration)}</span>

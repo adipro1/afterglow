@@ -1,12 +1,18 @@
 import { create } from 'zustand';
 import { registry } from '@/visualizations/registry';
 import type { QualityLevel } from '@/visualizations/types';
+import type { SceneTransitionId } from '@/engine/transitions';
 
 interface SceneState {
   sceneId: string;
   variation: string;
   quality: QualityLevel;
+  /** How the next scene change should look (set by whoever changes the scene). */
+  transition: SceneTransitionId;
+  /** A choice by the user — remembered for next time. */
   select(sceneId: string, variation?: string): void;
+  /** A choice by the director — not remembered (the director re-decides every song). */
+  apply(sceneId: string, variation: string, transition: SceneTransitionId): void;
   cycleVariation(dir?: 1 | -1): void;
   cycleScene(dir?: 1 | -1): void;
 }
@@ -39,18 +45,26 @@ function persist(sceneId: string, variation: string) {
 }
 
 /**
- * Which visualisation is showing. Manual for now; the adaptive director (Phase 4) will drive
- * this, with user locks/overrides layered on top (Phase 7).
+ * Which visualisation is showing. The adaptive director (`director/`) drives it while it's in
+ * auto mode; the user's own picks (S / V) take over in manual mode.
  */
 export const useScene = create<SceneState>((set, get) => ({
   ...loadInitial(),
   quality: 'balanced',
+  transition: 'sink',
   select(sceneId, variation) {
     const entry = registry.find((e) => e.meta.id === sceneId);
     if (!entry) return;
     const v = variation ?? entry.meta.variations[0]!.id;
     persist(sceneId, v);
-    set({ sceneId, variation: v });
+    set({ sceneId, variation: v, transition: 'sink' });
+  },
+  apply(sceneId, variation, transition) {
+    const entry = registry.find((e) => e.meta.id === sceneId);
+    if (!entry || !entry.meta.variations.some((v) => v.id === variation)) return;
+    const cur = get();
+    if (cur.sceneId === sceneId && cur.variation === variation) return;
+    set({ sceneId, variation, transition });
   },
   cycleVariation(dir = 1) {
     const { sceneId, variation } = get();

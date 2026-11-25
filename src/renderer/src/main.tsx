@@ -8,8 +8,10 @@ import './styles/tokens.css';
 import './styles/base.css';
 import { App } from './app/App';
 import { installTestHooks } from './app/test-hooks';
+import { startDirector } from './director/runtime';
 
 installTestHooks();
+startDirector();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

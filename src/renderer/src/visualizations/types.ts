@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
 import type { LyricsDocument, TrackRef } from '@shared/lyrics';
+import type { MoodLabel, ThemeId } from '@shared/interpretation';
 
 export type QualityLevel = 'performance' | 'balanced' | 'quality';
 
@@ -18,8 +19,19 @@ export interface VisualizationMeta {
   description: string;
   category: VisualizationCategory;
   variations: readonly VariationMeta[];
-  /** Lyric themes this visualisation suits — consumed by the adaptive director (Phase 4). */
-  themes: readonly string[];
+  /** Lyric themes this visualisation suits, strongest first — read by the adaptive director. */
+  themes: readonly ThemeId[];
+  /** Section energy (0…1) it is comfortable with. Default: anything. */
+  energy?: readonly [number, number];
+  /** Moods it carries well. */
+  moods?: readonly MoodLabel[];
+  /**
+   * Variations in order of intensity. When a section returns (chorus 2, chorus 3), the director
+   * moves one step along this list so the song escalates. Default: the `variations` order.
+   */
+  escalation?: readonly string[];
+  /** A calm fallback the director may use when nothing else fits a section. */
+  baseline?: boolean;
 }
 
 /**
